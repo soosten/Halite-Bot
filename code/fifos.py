@@ -29,6 +29,10 @@ class Fifos:
         # strip these ships from the scheduling queue
         queue.ships = list(set(queue.ships) - set(self.stripped.values()))
 
+        # this should never have any effect
+        # queue.converts = list(set(queue.converts) \
+        #    - set(self.stripped.values()))
+
         return
 
     def resolve(self, state, queue, actor, action):

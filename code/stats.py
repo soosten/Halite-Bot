@@ -1,13 +1,26 @@
 class Stats:
     def __init__(self):
         self.last_state = None
+        self.current_state = None
+
+        self.yard_attackers = []
         self.yard_attacks = False
+
+        self.idling_ship_pos = np.array([]).astype(int)
+        self.snapshots = []
         return
 
     def update(self, state):
         if self.last_state is None:
             self.last_state = state
             return
+
+        self.current_state = state
+
+        # check if there are any idling ships
+        self.set_idling_ships()
+
+        self.find_yard_attacks()
 
         # check if any of the players lost a yard in the last turn
         # this works because if a yard gets destroyed, it takes at least
@@ -19,5 +32,11 @@ class Stats:
         if opp_diff.size + my_diff.size > 0:
             self.yard_attacks = True
 
-        self.last_state = state
+        self.last_state = self.current_state
+        return
+
+    def set_idling_ships(self):
+        return
+
+    def find_yard_attacks(self):
         return

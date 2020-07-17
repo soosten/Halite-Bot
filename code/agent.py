@@ -24,6 +24,7 @@ def agent(obs, config):
 
     # now decide on "normal" actions for the remaining actors
     while queue.pending():
+
         # schedule the next ship/yard
         actor = queue.schedule(state)
 
@@ -44,10 +45,5 @@ def agent(obs, config):
     # update the global statistics we track across all turns
     global stats
     stats.update(state)
-
-    print(1 + state.step)
-    if state.step == 398:
-        print(f"converted {targets.conversions} / {targets.total_bounties}")
-        print(f"total: {targets.total_loot}")
 
     return actions

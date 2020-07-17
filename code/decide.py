@@ -78,16 +78,16 @@ def should_spawn(state, actor=None):
     my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
     my_score = state.my_halite + np.sum(state.my_ship_hal)
 
-    # don't spawn if we have the maximum number of ships
-    if my_ships >= MAX_SHIPS:
-        return False
-
-    # otherwise we determine a minimum number of ships to keep based on
-    # opponent's scores and number of ships
+    # determine a number of ships to keep based on opponent's scores and ships
     num_ships = lambda x: x[2].size
     score = lambda x: x[0] + np.sum(x[3])
     max_opp_ships = max([num_ships(opp) for opp in state.opp_data])
     max_opp_score = max([score(opp) for opp in state.opp_data])
+
+    # don't spawn if we have the maximum number of ships
+    # max_ships = min(MAX_SHIPS, max_opp_ships + 15)
+    if my_ships >= MAX_SHIPS:
+        return False
 
     # generally, we want to keep at least as many ships as the opponents
     # so that we don't get completely overrun even when we are trailing
@@ -98,19 +98,23 @@ def should_spawn(state, actor=None):
     # regardless of what opponents do, keep a minimum amount of ships
     min_ships = max(min_ships, MIN_SHIPS)
 
-    # there are two special cases. if we're leading by a lot, we should keep
-    # spawning and increase our control of the board. we keep a buffer
-    # that ensures we can spawn/convert if something unexpected happens
-    # the formula below is buffer = 500 (= spawnCost) halfway through the game
-    # and buffer = 1500 (= spawnCost + 2 * convertCost) when there are < 50
-    # steps remaining
+    # there are three special cases:
+    # we should always spawn at the beginning of the game
+    if state.step < STEPS_INITIAL:
+        min_ships = MAX_SHIPS
+
+    # if we're leading by a lot, we should keep spawning and increase our
+    # control of the board. we keep a buffer that ensures we can spawn/convert
+    # if something unexpected happens. the formula below is buffer = 500
+    # (= spawnCost) halfway through the game and buffer = 1500
+    # (= spawnCost + 2 * convertCost) when there are < 50 steps remaining
     op_costs = state.config.spawnCost + state.config.convertCost
     buffer = 2 * op_costs * ((state.step / state.total_steps) ** 2)
     if my_score > max_opp_score + buffer:
         min_ships = MAX_SHIPS
 
-    # the other special case is that we shouldn't spawn too much at the end
-    # of the game. these ships won't pay for their cost before the game ends
+    # we shouldn't spawn too much at the end of the game. these ships won't
+    # pay for their cost before the game ends
     if state.total_steps - state.step < STEPS_FINAL:
         min_ships = 5
 
@@ -227,12 +231,11 @@ def interest_rate(state, ship):
     if state.total_steps - state.step < STEPS_INTEREST_SPIKE:
         risk = 0.8
 
-    # bring cargo home quicker at the beginning
-    if state.step < STEPS_INITIAL:
-        risk += 0.01
+    # bring cargo home quicker if we need to spawn
+    risk += SPAWN_PREMIUM * should_spawn(state)
 
     # keep a minimum rate of 1 percent even if map is clear
-    return 0.02 + risk
+    return BASELINE_INTEREST + risk
 
 
 def make_map(actor, state):
@@ -247,7 +250,7 @@ def make_map(actor, state):
         effmap[hood] = 0
 
     # see what targets have been set for our ship and add them to the map
-    positions, rewards = targets.get_arrays(actor)
+    positions, rewards = targets.get_arrays(actor, state)
     if positions.size != 0:
         effmap[positions] = rewards
 

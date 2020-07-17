@@ -19,11 +19,16 @@ MIN_SHIPS = 12
 # parameters for setting targets and hunters
 HUNTERS_PER_TARGET = 5
 MAX_HUNTERS_PER_SHIP = 1
+MIN_HUNTERS_PER_SHIP = 0.7
+
+# interest rate
+BASELINE_INTEREST = 0.01
+SPAWN_PREMIUM = 0
 
 # should we operate the shipyards in FIFO mode?
 USE_FIFO_SYSTEM = True
 
-# intialize global strategy object we keep throughout the episode
+# intialize global strategy objects we keep throughout the episode
 stats = Stats()
 targets = Targets()
 fifos = Fifos()

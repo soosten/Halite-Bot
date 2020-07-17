@@ -9,7 +9,7 @@ class Targets:
         self.ship_targets_hal = np.array([]).astype(int)
         self.ship_targets_rew = np.array([]).astype(int)
 
-        # remove
+        # stats - remove
         self.total_bounties = 0
         self.conversions = 0
         self.total_loot = 0
@@ -30,32 +30,34 @@ class Targets:
             # determine a mining value of each ship based on its cargo
             # and the amount of halite near it
             # for each ship position x, hood_hal[x] is the average halite in
-            # the cells around x. we add this to the cargo to break ties in
-            # values of ships with equal cargo
-            boolhood = state.dist[state.my_ship_pos, :] <= 2
+            # the cells around x.
+            boolhood = state.dist[state.my_ship_pos, :] <= 3
             hood = np.apply_along_axis(np.flatnonzero, 1, boolhood)
             hood_hal = np.mean(state.halite_map[hood], axis=1)
-            ship_val = state.my_ship_hal + 0.1 * hood_hal
+            ship_val = state.my_ship_hal + hood_hal
 
             # choose a fraction of ships depending on halite on the map
             q = MAX_HUNTERS_PER_SHIP
             q -= np.sum(state.halite_map) / state.config.startingHalite
-            q = q if q > 0.3 else 0
+            q = q if q > MIN_HUNTERS_PER_SHIP else 0
             num_hunters = int(q * len(state.my_ships))
 
             # designate the num_hunters ships with lowest value as hunters
-            hunters_ind = np.argpartition(ship_val, num_hunters)
-            hunters_ind = hunters_ind[0:num_hunters]
-            self.hunters_pos = state.my_ship_pos[hunters_ind]
-
-            # remove any fifo ships from the hunters
-            self.hunters_pos = np.setdiff1d(self.hunters_pos, fifos.fifo_pos)
+            # and remove any fifo ships from the hunters
+            # if num_hunters = 0, we pass -1 to argpartition which sorts from
+            # the other end - but we don't care since the slice 0:num_hunters
+            # will be empty...
+            hunters_inds = np.argpartition(ship_val, num_hunters - 1)
+            hunters_inds = hunters_inds[0:num_hunters]
+            fifo_bool = np.in1d(state.my_ship_pos, fifos.fifo_pos)
+            fifo_inds = np.flatnonzero(fifo_bool)
+            hunters_inds = np.setdiff1d(hunters_inds, fifo_inds)
+            self.hunters_pos = state.my_ship_pos[hunters_inds]
+            self.hunters_hal = state.my_ship_hal[hunters_inds]
 
             # also keep hunters in dictionary form like state.my_ships
             self.hunters = {key: val for key, val in state.my_ships.items()
                             if val[0] in self.hunters_pos}
-            print(q)
-            print(f"{len(self.hunters)} / {len(state.my_ships)}")
 
         return
 
@@ -67,8 +69,8 @@ class Targets:
         # farthest from their own shipyards are the most vulnerable
         weights = np.ones_like(state.sites)
         if self.hunters_pos.size != 0:
-            weights += GRAPH_OPP_WEIGHT * \
-                np.sum(state.dist[self.hunters_pos, :] <= 2, axis=0)
+            hood = state.dist[self.hunters_pos, :] <= 3
+            weights += GRAPH_MY_WEIGHT * np.sum(hood, axis=0)
 
         graph = make_graph_csr(state, weights)
 
@@ -79,81 +81,88 @@ class Targets:
 
         for opp in state.opp_data:
             _hal, yards, ship_pos, ship_hal = opp
+            # if yards is empty, dijkstra returns inf. cut this off so
+            # that 0 * opp_ship_vul = 0 (instead of nan)
             ship_vul = dijkstra(graph, indices=yards, min_only=True)
-            ship_vul = ship_vul[ship_pos]
+            ship_vul = np.fmin(ship_vul[ship_pos], 10000).astype(int)
             opp_ship_pos = np.append(opp_ship_pos, ship_pos)
             opp_ship_hal = np.append(opp_ship_hal, ship_hal)
             opp_ship_vul = np.append(opp_ship_vul, ship_vul)
 
-        # if a ship has vulnerability <= 1, it will escape by reaching a yard
-        # on this turn or the next, so we remove them from both from the
-        # targeting pool and the targets already set
-        opp_ship_pos = opp_ship_pos[opp_ship_vul > 1]
-        opp_ship_hal = opp_ship_hal[opp_ship_vul > 1]
-        opp_ship_vul = opp_ship_vul[opp_ship_vul > 1]
+        nearby = state.dist[np.ix_(self.hunters_pos, opp_ship_pos)] <= 3
+        less_hal = self.hunters_hal[:, np.newaxis] < opp_ship_hal
+        nearby = np.sum(nearby & less_hal, axis=0)
 
-        # store positions of previous targets that are still alive
-        prev = np.array([state.opp_ships[key][0] for key in self.ship_targets
-                         if key in state.opp_ships]).astype(int)
+        # store current positions of previous targets that are still alive
+        prev = np.array([val[0] for key, val in state.opp_ships.items()
+                         if key in self.ship_targets]).astype(int)
 
-        # and get the indices of the ships that are already targeted
-        # the remaining ships form the pool of possible new targets
-        # (note: ~ = not but numpy doesn't like not...)
-        boolean_inds = np.in1d(opp_ship_pos, prev)
-        target_inds = np.flatnonzero(boolean_inds)
-        pool_inds = np.flatnonzero(~boolean_inds)
+        # get the indices of the ships that are already targeted
+        # if a ship has vulnerability <= 4, it will most likely escape by
+        # reaching a yard soon, so we remove such ships from the targets
+        # (note: & / | / ~ = and / or / not in numpy compatible way)
+        target_bool = np.in1d(opp_ship_pos, prev) & (opp_ship_vul >= 4)
+        target_inds = np.flatnonzero(target_bool)
 
-        # determine how many targets we would like to have
-        num_ship_targets = round(len(self.hunters) / HUNTERS_PER_TARGET)
+        # the pool of possible new targets consists of non-targeted ships that
+        # also satisfy some further conditions
+        candidates = ~target_bool
+        candidates = candidates & (opp_ship_vul >= 4) & (nearby >= 3)
 
-        # and add targets from the pool until the pool is empty
-        # or we have enough targets. we add the untargeted ship with the
-        # highest score defined as cargo * vulnerability
+        # we compute scores for each of the candidate ships indicating
+        # the risk/reward of attacking them
+        # make the scores of ships that are not candidates negative
         opp_ship_score = opp_ship_hal * opp_ship_vul
-        opp_ship_score[target_inds] = -1
+        opp_ship_score[~candidates] = -1
 
-        # this loop works because we set opp_ship_score < 0 at all selected
-        # (target) indices so the argmax always selects a pool_ind where
-        # opp_ship_score >= 0
-        while target_inds.size < num_ship_targets and pool_inds.size > 0:
-            new_ind = np.argmax(opp_ship_score)
-            pool_inds = np.setdiff1d(pool_inds, new_ind)
-            opp_ship_score[new_ind] = -1
+        # determine how many targets we would like to have and how many
+        # new targets we should/can build
+        num_targets = len(self.hunters) // HUNTERS_PER_TARGET
+        num_new_targets = max(num_targets - target_inds.size, 0)
+        num_new_targets = min(num_new_targets, np.sum(candidates))
 
-            # only actually set the bounty if there are also some hunters
-            # in the area to attack the ship
-            near = state.dist[self.hunters_pos, opp_ship_pos[new_ind]] <= 3
-            if np.count_nonzero(near) >= 0:
-                target_inds = np.append(target_inds, new_ind)
-                self.total_bounties += 1  # remove
+        # we can take those num_new_targets ships with maximum score
+        # since scores are >= 0  and we forced the scores of non-candidate
+        # ships to equal -1. see comment before argpartition in set_hunters
+        new_inds = np.argpartition(-opp_ship_score, num_new_targets - 1)
+        target_inds = np.append(target_inds, new_inds[0:num_new_targets])
 
         # stats - remove eventually
+        self.total_bounties += num_new_targets
         gotem = np.array([stats.last_state.opp_ships[key][1] for key in
                           self.ship_targets if key not in state.opp_ships])
         self.conversions += gotem.size
         self.total_loot += np.sum(gotem)
 
-        # write the new targets in the ship_targets list
-        # and set position/halite/rewards for the targets
-        self.ship_targets = [key for key, val in state.opp_ships.items()
-                             if val[0] in opp_ship_pos[target_inds]]
+        # set position/halite/rewards for the targets
         self.ship_targets_pos = opp_ship_pos[target_inds]
         self.ship_targets_hal = opp_ship_hal[target_inds]
         self.ship_targets_rew = 1000 * np.ones_like(self.ship_targets_pos)
+
+        # write the new targets in the ship_targets list
+        self.ship_targets = [key for key, val in state.opp_ships.items()
+                             if val[0] in self.ship_targets_pos]
 
         return
 
     def set_yard_targets(self, state):
         return
 
-    def get_arrays(self, actor):
+    def get_arrays(self, actor, state):
+        # append targets/rewards here depending on the nature of the ship
         positions = np.array([]).astype(int)
         rewards = np.array([]).astype(int)
 
+        # if the ship is supposed to hunt, add all targets within reach
+        # that also have more cargo than we do
         if actor in self.hunters:
             pos, hal = self.hunters[actor]
-            inds = np.flatnonzero(self.ship_targets_hal > hal)
+            hal_inds = self.ship_targets_hal > hal
+            pos_inds = state.dist[self.ship_targets_pos, pos] <= 5
+            inds = np.flatnonzero(pos_inds & hal_inds)
             positions = np.append(positions, self.ship_targets_pos[inds])
             rewards = np.append(rewards, self.ship_targets_rew[inds])
+
+        # if the ship is supposed to target shipyards, add these
 
         return positions, rewards

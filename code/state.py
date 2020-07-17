@@ -187,8 +187,8 @@ class State:
     def update(self, actor, action):
         # if actor is a yard only spawning has an effect on state
         if (actor in self.my_yards) and (action == "SPAWN"):
-            # generate a unique id string
-            newid = f"spawn[{actor}]-{str(uuid4())}"
+            # modify the id string
+            newid = f"spawn[{actor}]"
 
             # create a new ship with no cargo at yard position
             pos = self.my_yards[actor]
@@ -204,8 +204,8 @@ class State:
             pos, hal = self.my_ships[actor]
 
             if action == "CONVERT":
-                # generate a unique id string
-                newid = f"convert[{actor}]-{str(uuid4())}"
+                #  modify the id string
+                newid = f"convert[{actor}]"
 
                 # create a new yard at ship position and remove ship
                 self.my_yards[newid] = pos
@@ -308,3 +308,25 @@ class State:
             collision = collision or (npos in hood)
 
         return collision
+
+    def num_moves(self, ship):
+        pos, hal = self.my_ships[ship]
+
+        # possible sites the ship can go to
+        moves = np.flatnonzero(self.dist[pos, :] <= 1)
+
+        # hood is set of sites where ships with less cargo can be in one step
+        less_hal = self.opp_ship_pos[self.opp_ship_hal <= hal]
+        if less_hal.size != 0:
+            hood = np.flatnonzero(np.amin(self.dist[less_hal, :], axis=0) <= 1)
+            hood = np.setdiff1d(hood, self.my_yard_pos)
+        else:
+            hood = np.array([]).astype(int)
+
+        # remove hood, opponent yards, and ship we already moved
+        # from the set of sites we can go to
+        moves = np.setdiff1d(moves, hood)
+        moves = np.setdiff1d(moves, self.opp_yard_pos)
+        moves = np.setdiff1d(moves, self.moved_this_turn)
+
+        return moves.size

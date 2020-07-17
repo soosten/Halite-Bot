@@ -23,7 +23,7 @@ def main():
               PATH + "submission.py", PATH + "submission.py"]
 
     # run the simulation - setting a random seed is optional
-    run(PATH, agents, seed=42)
+    run(PATH, agents, seed=0)
 
     print("Done.")
     return
@@ -43,6 +43,10 @@ def write(PATH):
         print("Error: /code/ directory must contain agent.py, "
               + "imports.py, and init.py")
         raise SystemExit
+
+    # write the files in lexicographical order so its easier to
+    # scroll to them in the combined file
+    code_dir.sort()
 
     # write imports.py, then all files in PATH/code/, then init.py,
     # and finally agent.py into submission.py
