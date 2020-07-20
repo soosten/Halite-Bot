@@ -1,4 +1,5 @@
 def agent(obs, config):
+    tick = time()
     # internal game state, to be updated as we decide on actions
     state = State(obs, config)
 
@@ -24,7 +25,6 @@ def agent(obs, config):
 
     # now decide on "normal" actions for the remaining actors
     while queue.pending():
-
         # schedule the next ship/yard
         actor = queue.schedule(state)
 
@@ -45,5 +45,12 @@ def agent(obs, config):
     # update the global statistics we track across all turns
     global stats
     stats.update(state)
+
+    if state.step == 398:
+        print(f"{targets.conversions} / {targets.total_bounties} = {round(targets.conversions / targets.total_bounties, 2)} ")
+        print(f"{targets.total_loot}")
+
+    tock = time()
+    print(f"step {state.step + 1} took {round(tock - tick, 3)} seconds")
 
     return actions

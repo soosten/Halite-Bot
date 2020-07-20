@@ -34,7 +34,7 @@ class Targets:
             boolhood = state.dist[state.my_ship_pos, :] <= 3
             hood = np.apply_along_axis(np.flatnonzero, 1, boolhood)
             hood_hal = np.mean(state.halite_map[hood], axis=1)
-            ship_val = state.my_ship_hal + hood_hal
+            ship_val = state.my_ship_hal + 0.1 * hood_hal
 
             # choose a fraction of ships depending on halite on the map
             q = MAX_HUNTERS_PER_SHIP
@@ -65,30 +65,46 @@ class Targets:
         # we choose new targets from a pool of opponent ships. to select the
         # new targets we consider a score composed of "vulnerability" and
         # cargo. to measure vulnerability, we construct a graph where the
-        # positions of our hunters have higher weights. the ships that are
-        # farthest from their own shipyards are the most vulnerable
+        # positions of our hunters have higher weights.
         weights = np.ones_like(state.sites)
         if self.hunters_pos.size != 0:
-            hood = state.dist[self.hunters_pos, :] <= 3
+            hood = state.dist[self.hunters_pos, :] <= 2
             weights += GRAPH_MY_WEIGHT * np.sum(hood, axis=0)
+
+        mean_weight = np.mean(weights)
 
         graph = make_graph_csr(state, weights)
 
         # calculate position, halite, and vulnerability for all opponent ships
+        # vulnerability is the ratio of distance to the nearest friendly yard
+        # on the weighted graph over distance to the nearest friendly yard on
+        # a graph with constant weights equal to mean_weight. a vulnerability
+        # greater than one means we have hunters obstructing the path to the
+        # nearest yard...
         opp_ship_pos = np.array([]).astype(int)
         opp_ship_hal = np.array([]).astype(int)
         opp_ship_vul = np.array([]).astype(int)
+        opp_ship_dis = np.array([]).astype(int)
 
-        for opp in state.opp_data:
-            _hal, yards, ship_pos, ship_hal = opp
-            # if yards is empty, dijkstra returns inf. cut this off so
-            # that 0 * opp_ship_vul = 0 (instead of nan)
-            ship_vul = dijkstra(graph, indices=yards, min_only=True)
-            ship_vul = np.fmin(ship_vul[ship_pos], 10000).astype(int)
+        for opp in state.opp_data.values():
+            yards, ship_pos, ship_hal = opp[1:4]
+
+            if yards.size == 0:
+                ship_vul = 10 * np.ones_like(ship_pos)
+                ship_dis = 10 * np.ones_like(ship_pos)
+            else:
+                graph_dist = dijkstra(graph, indices=yards, min_only=True)
+                graph_dist = graph_dist[ship_pos]
+                ship_dis = np.amin(state.dist[np.ix_(yards, ship_pos)], axis=0)
+                ship_vul = (1 + graph_dist) / (1 + mean_weight * ship_dis)
+
             opp_ship_pos = np.append(opp_ship_pos, ship_pos)
             opp_ship_hal = np.append(opp_ship_hal, ship_hal)
             opp_ship_vul = np.append(opp_ship_vul, ship_vul)
+            opp_ship_dis = np.append(opp_ship_dis, ship_dis)
 
+        # nearby contains the number of hunters within distance 3
+        # that also have less cargo than the ship
         nearby = state.dist[np.ix_(self.hunters_pos, opp_ship_pos)] <= 3
         less_hal = self.hunters_hal[:, np.newaxis] < opp_ship_hal
         nearby = np.sum(nearby & less_hal, axis=0)
@@ -98,21 +114,25 @@ class Targets:
                          if key in self.ship_targets]).astype(int)
 
         # get the indices of the ships that are already targeted
-        # if a ship has vulnerability <= 4, it will most likely escape by
-        # reaching a yard soon, so we remove such ships from the targets
+        # if a ship is too close to a friendly yard or no longer has
+        # enough hunters nearby, it will probably escape. so we remove such
+        # ships from the targets
         # (note: & / | / ~ = and / or / not in numpy compatible way)
-        target_bool = np.in1d(opp_ship_pos, prev) & (opp_ship_vul >= 4)
+        target_bool = np.in1d(opp_ship_pos, prev)
+        target_bool = target_bool & (opp_ship_dis >= 3) & (nearby >= 3)
         target_inds = np.flatnonzero(target_bool)
 
         # the pool of possible new targets consists of non-targeted ships that
-        # also satisfy some further conditions
+        # are trapped (vulnerability > 1), have 3 hunters nearby, and
+        # aren't too close to a friendly yard
         candidates = ~target_bool
-        candidates = candidates & (opp_ship_vul >= 4) & (nearby >= 3)
+        candidates = candidates & (opp_ship_dis >= 3)
+        candidates = candidates & (opp_ship_vul > 1) & (nearby >= 3)
 
         # we compute scores for each of the candidate ships indicating
         # the risk/reward of attacking them
         # make the scores of ships that are not candidates negative
-        opp_ship_score = opp_ship_hal * opp_ship_vul
+        opp_ship_score = opp_ship_hal * opp_ship_vul * nearby
         opp_ship_score[~candidates] = -1
 
         # determine how many targets we would like to have and how many
@@ -158,7 +178,7 @@ class Targets:
         if actor in self.hunters:
             pos, hal = self.hunters[actor]
             hal_inds = self.ship_targets_hal > hal
-            pos_inds = state.dist[self.ship_targets_pos, pos] <= 5
+            pos_inds = state.dist[self.ship_targets_pos, pos] <= 6
             inds = np.flatnonzero(pos_inds & hal_inds)
             positions = np.append(positions, self.ship_targets_pos[inds])
             rewards = np.append(rewards, self.ship_targets_rew[inds])

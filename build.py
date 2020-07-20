@@ -3,7 +3,6 @@
 from os import listdir
 from shutil import copyfileobj
 from kaggle_environments import make
-import sys
 
 
 def main():
@@ -92,17 +91,8 @@ def run(PATH, agents, seed=None):
         print("Running simulation...")
         env = make("halite", debug=True)
 
-    # redirect stdout/stderr to console.txt and run the simulation
-    realstdout = sys.stdout
-    realstderr = sys.stderr
-
-    with open(PATH + "console.txt", "w") as sys.stdout:
-        sys.stderr = sys.stdout
-        env.run(agents)
-
-    # restore stdout/stderr
-    sys.stdout = realstdout
-    sys.stderr = realstderr
+    # run the simulation
+    env.run(agents)
 
     # write the output video to simulation.html
     print("Rendering episode...")

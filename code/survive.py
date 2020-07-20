@@ -4,8 +4,8 @@ def survive(state, queue):
     if len(state.my_yards) == 0:
         # see if it is possible to convert the ship with the most cargo
         # if so, convert it, update state, and return to normal operation
-        halite = lambda ship: state.my_ships[ship][1]
-        max_cargo = max(queue.ships, key=halite)
+        cargo = lambda ship: state.my_ships[ship][1]
+        max_cargo = max(queue.ships.keys(), key=cargo)
         pos, hal = state.my_ships[max_cargo]
         if hal + state.my_halite >= state.config.convertCost:
             queue.remove(max_cargo)
@@ -31,8 +31,8 @@ def run_and_collect(state, queue):
 
     while queue.pending():
         # schedule the ship with most halite
-        halite = lambda ship: state.my_ships[ship][1]
-        ship = max(queue.ships, key=halite)
+        cargo = lambda ship: state.my_ships[ship][1]
+        ship = max(queue.ships.keys(), key=cargo)
         queue.remove(ship)
 
         pos, hal = state.my_ships[ship]
@@ -77,7 +77,7 @@ def spawn_maximum(state, queue):
 
     while queue.pending():
         # schedule the next yard
-        yard = queue.yards[0]
+        yard = min(queue.yards, key=queue.yards.get)
         queue.remove(yard)
 
         # list of legal moves

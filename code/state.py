@@ -11,8 +11,8 @@ class State:
         self.halite_map = np.array(obs.halite)
 
         # my halite, yards, and ships
-        my_id = obs.player
-        self.my_halite, self.my_yards, self.my_ships = obs.players[my_id]
+        self.my_id = obs.player
+        self.my_halite, self.my_yards, self.my_ships = obs.players[self.my_id]
 
         # set joint and individual data for oppenents
         self.set_opp_data(obs)
@@ -53,21 +53,20 @@ class State:
 
     def set_opp_data(self, obs):
         # figure out my id / opponent id
-        my_id = obs.player
-        opp_ids = list(range(0, len(obs.players)))
-        opp_ids.remove(my_id)
+        self.opp_ids = list(range(0, len(obs.players)))
+        self.opp_ids.remove(self.my_id)
 
         # joint opponent ships and yards
         self.opp_ships = {}
         self.opp_yards = {}
-        for opp in opp_ids:
+        for opp in self.opp_ids:
             self.opp_yards.update(obs.players[opp][1])
             self.opp_ships.update(obs.players[opp][2])
 
-        # list of lists. for each opponent has halite, yard positions, ship
+        # dict of lists. for each opponent has halite, yard positions, ship
         # positions, ship halite as numpy arrays
-        self.opp_data = []
-        for opp in opp_ids:
+        self.opp_data = {}
+        for opp in self.opp_ids:
             halite, yards, ships = obs.players[opp]
             yard_pos = np.array(list(yards.values())).astype(int)
             if len(ships) > 0:
@@ -79,7 +78,7 @@ class State:
                 ship_pos = np.array([]).astype(int)
                 ship_hal = np.array([]).astype(int)
 
-            self.opp_data.append([halite, yard_pos, ship_pos, ship_hal])
+            self.opp_data[opp] = [halite, yard_pos, ship_pos, ship_hal]
 
         return
 
@@ -112,65 +111,72 @@ class State:
 
     def make_clusters(self):
         # array of all sites we are currently occupying
-        self.cluster_pos = np.append(self.my_ship_pos, self.my_yard_pos)
-        self.cluster_pos = np.unique(self.cluster_pos)
+        self.cluster_pos = np.union1d(self.my_ship_pos, self.my_yard_pos)
 
         # if there are not enough sites to cluster, set them all as outliers
         if self.cluster_pos.size <= MIN_CLUSTER_SIZE:
             self.cluster_labels = - np.ones_like(self.cluster_pos)
-            return
 
-        # create a graph for clustering - see explanation in make_weights()
-        my_weight, opp_weight = GRAPH_MY_WEIGHT, GRAPH_OPP_WEIGHT
+        # otherwise, we create a weighte graph for clustering. the idea is
+        # that positions will be in separate clusters if there are opponent
+        # ships/yards separating them and if there are two many of our
+        # own ships in the way.
 
-        weights = np.ones_like(self.sites)
+        else:
+            # create weights similar to those in make_weights() (see comments
+            # there). unlike make_weights() we don't want to remove any weights
+            # on our own yards here.
+            my_weight, opp_weight = GRAPH_MY_WEIGHT, GRAPH_OPP_WEIGHT
 
-        weights += my_weight * \
-            np.sum(self.dist[self.my_ship_pos, :] <= 1, axis=0)
+            weights = np.ones_like(self.sites)
 
-        if self.opp_ship_pos.size != 0:
-            weights += opp_weight * \
-                np.sum(self.dist[self.opp_ship_pos, :] <= 2, axis=0)
+            weights += my_weight * \
+                np.sum(self.dist[self.my_ship_pos, :] <= 1, axis=0)
 
-        if self.opp_yard_pos.size != 0:
-            weights[self.opp_yard_pos] += opp_weight
+            if self.opp_ship_pos.size != 0:
+                weights += opp_weight * \
+                    np.sum(self.dist[self.opp_ship_pos, :] <= 2, axis=0)
 
-        # unlike make_weights() we DON'T want to remove any weights on
-        # our yards for this part
-        # weights[state.my_yard_pos] = 0
+            if self.opp_yard_pos.size != 0:
+                weights[self.opp_yard_pos] += opp_weight
 
-        graph = make_graph_csr(self, weights)
+            graph = make_graph_csr(self, weights)
 
-        # compute graph distances to all cluster sites
-        self.cluster_dists = dijkstra(graph, indices=self.cluster_pos)
-        dist_matrix = self.cluster_dists[:, self.cluster_pos]
+            # compute graph distances to all cluster sites
+            self.cluster_dists = dijkstra(graph, indices=self.cluster_pos)
+            dist_matrix = self.cluster_dists[:, self.cluster_pos]
 
-        # run the OPTICS clustering algorithm
-        model = OPTICS(min_samples=MIN_SAMPLES,
-                       min_cluster_size=MIN_CLUSTER_SIZE,
-                       metric="precomputed")
+            # run the OPTICS clustering algorithm
+            model = OPTICS(min_samples=MIN_SAMPLES,
+                           min_cluster_size=MIN_CLUSTER_SIZE,
+                           metric="precomputed")
 
-        # ignore outlier warnings from OPTICS
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            self.cluster_labels = model.fit_predict(dist_matrix)
+            # ignore outlier warnings from OPTICS
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self.cluster_labels = model.fit_predict(dist_matrix)
 
         return
 
     def get_cluster(self, pos):
-        if pos not in self.cluster_pos:
-            return np.array([]).astype(int)
+        label = self.cluster_labels[self.cluster_pos == pos]
 
-        ind = np.flatnonzero(self.cluster_pos == pos)
-        label = self.cluster_labels[ind]
+        # if the label is empty, the position was not in the cluster
+        # positions - return an empty cluster
+        if label.size == 0:
+            cluster = np.array([]).astype(int)
 
-        if label == -1:  # outliers - return only the position
-            return np.array([pos])
+        # if the label is -1, the position is an outlier
+        # return a cluster with only this position
+        elif label == -1:
+            cluster = np.array([pos])
+
+        # otherwise the position is in some cluster - return it
         else:
             cluster_inds = np.flatnonzero(self.cluster_labels == label)
-            return self.cluster_pos[cluster_inds]
+            cluster = self.cluster_pos[cluster_inds]
 
-#######################################################
+        return cluster
 
     def newpos(self, pos, action):
         if (action is None) or (action == "CONVERT"):
@@ -282,13 +288,16 @@ class State:
         return collision
 
     def opp_collision(self, ship, action, strict=True):
-        # return True if a collision is possible in the next step if ship
-        # performs action
         pos, hal = self.my_ships[ship]
         npos = self.newpos(pos, action)
+        moves = self.safe_sites(ship, strict)
+        return (npos not in moves)
 
-        # check whether we run into a yard
-        collision = npos in self.opp_yard_pos
+    def safe_sites(self, ship, strict=True):
+        pos, hal = self.my_ships[ship]
+
+        # possible sites the ship can go to
+        moves = np.flatnonzero(self.dist[pos, :] <= 1)
 
         # find those ships that have less halite than we do
         if strict:
@@ -296,37 +305,18 @@ class State:
         else:
             less_hal = self.opp_ship_pos[self.opp_ship_hal < hal]
 
-        if less_hal.size != 0:
-            # list of sites where ships in less_hal could end up after one turn
-            hood = np.flatnonzero(np.amin(self.dist[less_hal, :], axis=0) <= 1)
-
-            # regard our own shipyards as safe havens - this is not necessarily
-            # the case but many opponents will not want to run into the yard
-            # this will cost them their ship too
-            hood = np.setdiff1d(hood, self.my_yard_pos)
-
-            collision = collision or (npos in hood)
-
-        return collision
-
-    def num_moves(self, ship):
-        pos, hal = self.my_ships[ship]
-
-        # possible sites the ship can go to
-        moves = np.flatnonzero(self.dist[pos, :] <= 1)
-
         # hood is set of sites where ships with less cargo can be in one step
-        less_hal = self.opp_ship_pos[self.opp_ship_hal <= hal]
+        # regard our own shipyards as safe havens - this is not necessarily
+        # the case but many opponents will not want to run into the yard
+        # as this will cost them their ship too
         if less_hal.size != 0:
             hood = np.flatnonzero(np.amin(self.dist[less_hal, :], axis=0) <= 1)
             hood = np.setdiff1d(hood, self.my_yard_pos)
         else:
             hood = np.array([]).astype(int)
 
-        # remove hood, opponent yards, and ship we already moved
-        # from the set of sites we can go to
+        # remove hood and opponent yards from the set of sites we can go to
         moves = np.setdiff1d(moves, hood)
         moves = np.setdiff1d(moves, self.opp_yard_pos)
-        moves = np.setdiff1d(moves, self.moved_this_turn)
 
-        return moves.size
+        return moves
