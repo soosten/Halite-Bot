@@ -156,6 +156,12 @@ def should_convert(actor, state):
     if np.intersect1d(cluster, state.my_yard_pos).size != 0:
         return False
 
+    # don't build a yard if there are not enough halite cells nearby
+    hood = np.amin(state.dist[pos, :], axis=0) <= HALITE_CELL_RADIUS
+    halite_cells = np.count_nonzero(state.halite_map[hood])
+    if halite_cells < MIN_HALITE_CELLS:
+        return False
+
     # finally only build a yard if we maximize the mean l1 distance
     # to the yards we already own. if this is not the case, the ship
     # in the cluster that does maximize this should convert instead

@@ -4,7 +4,9 @@ GRAPH_OPP_WEIGHT = 4
 
 # parameters for yard clustering algorithm
 MIN_SAMPLES = 3
-MIN_CLUSTER_SIZE = 5
+MIN_CLUSTER_SIZE = 3
+HALITE_CELL_RADIUS = 3
+MIN_HALITE_CELLS = 7
 BASELINE_SHIPS_PER_YARD = 6
 
 # how many steps are the "initial" and "final" phases of the game
@@ -25,7 +27,7 @@ HUNTING_RADIUS = 100
 YARD_HUNTING_START = 300
 YARD_HUNTING_FINAL = 30
 YARD_HUNTING_MIN_SHIPS = 10
-YARD_HUNTING_RADIUS = 5
+YARD_HUNTING_RADIUS = 6
 
 # interest rate
 BASELINE_INTEREST = 0

@@ -15,13 +15,14 @@ class Fifos:
 
         # if an opponent that has attacked shipyards in the past gets within
         # radius 2 of a yard, we add the yard to the fifo yards
+        attacker_pos = np.array([]).astype(int)
         for opp in stats.yard_attackers:
-            ship_pos = state.opp_data[opp][2]
-            if ship_pos.size != 0:
-                dist = state.dist[np.ix_(ship_pos, state.my_yard_pos)]
-                inds = np.amin(dist, axis=0) <= 2
-                new = state.my_yard_pos[inds]
-                self.fifo_pos = np.union1d(self.fifo_pos, new)
+            attacker_pos = np.append(attacker_pos, state.opp_data[opp][2])
+
+        if attacker_pos.size != 0:
+            dist = state.dist[np.ix_(attacker_pos, state.my_yard_pos)]
+            inds = np.amin(dist, axis=0) <= 2
+            self.fifo_pos = np.union1d(self.fifo_pos, state.my_yard_pos[inds])
 
         return
 

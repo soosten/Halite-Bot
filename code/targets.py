@@ -206,7 +206,6 @@ class Targets:
         should_attack &= state.step > YARD_HUNTING_START
 
         if should_attack:
-            print(f"{state.step +1}: targeting {closest}")
             opp_yards, opp_ships = state.opp_data[closest][1:3]
 
             # in the final stage of the game we target all yards
@@ -252,10 +251,7 @@ class Targets:
             # many ships due to shipyard hunting
             endgame = state.total_steps - state.step < YARD_HUNTING_FINAL
             radius = YARD_HUNTING_RADIUS + endgame * 6
-
             inds = state.dist[self.yard_targets_pos, pos] <= radius
-            if np.sum(inds) != 0:
-                print("target set")
             positions = np.append(positions, self.yard_targets_pos[inds])
             rewards = np.append(rewards, self.yard_targets_rew[inds])
 

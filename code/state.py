@@ -1,7 +1,6 @@
 class State:
     def __init__(self, obs, config):
-        # keep copies of the observation parameters
-        self.obs = obs
+        # complete game configuration - remove eventually
         self.config = config
 
         # game configuration
@@ -129,7 +128,7 @@ class State:
 
             weights = np.ones_like(self.sites)
 
-            weights += my_weight * \
+            weights += 0 * my_weight * \
                 np.sum(self.dist[self.my_ship_pos, :] <= 1, axis=0)
 
             if self.opp_ship_pos.size != 0:
