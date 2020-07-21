@@ -46,9 +46,9 @@ def agent(obs, config):
     global stats
     stats.update(state)
 
-    if state.step == 398:
-        print(f"{targets.conversions} / {targets.total_bounties} = {round(targets.conversions / targets.total_bounties, 2)} ")
-        print(f"{targets.total_loot}")
+    # if state.step == 398:
+    #     print(f"{targets.conversions} / {targets.total_bounties} = {round(targets.conversions / targets.total_bounties, 2)} ")
+    #     print(f"{targets.total_loot}")
 
     tock = time()
     print(f"step {state.step + 1} took {round(tock - tick, 3)} seconds")

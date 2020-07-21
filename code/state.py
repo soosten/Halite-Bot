@@ -120,12 +120,11 @@ class State:
         # otherwise, we create a weighte graph for clustering. the idea is
         # that positions will be in separate clusters if there are opponent
         # ships/yards separating them and if there are two many of our
-        # own ships in the way.
-
+        # own ships in the way
         else:
             # create weights similar to those in make_weights() (see comments
             # there). unlike make_weights() we don't want to remove any weights
-            # on our own yards here.
+            # on our own yards here
             my_weight, opp_weight = GRAPH_MY_WEIGHT, GRAPH_OPP_WEIGHT
 
             weights = np.ones_like(self.sites)
@@ -287,13 +286,13 @@ class State:
 
         return collision
 
-    def opp_collision(self, ship, action, strict=True):
+    def opp_collision(self, ship, action, strict=True, yards=True):
         pos, hal = self.my_ships[ship]
         npos = self.newpos(pos, action)
-        moves = self.safe_sites(ship, strict)
+        moves = self.safe_sites(ship, strict, yards)
         return (npos not in moves)
 
-    def safe_sites(self, ship, strict=True):
+    def safe_sites(self, ship, strict=True, yards=True):
         pos, hal = self.my_ships[ship]
 
         # possible sites the ship can go to
@@ -317,6 +316,7 @@ class State:
 
         # remove hood and opponent yards from the set of sites we can go to
         moves = np.setdiff1d(moves, hood)
-        moves = np.setdiff1d(moves, self.opp_yard_pos)
+        if yards:
+            moves = np.setdiff1d(moves, self.opp_yard_pos)
 
         return moves
