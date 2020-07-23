@@ -12,15 +12,16 @@ def agent(obs, config):
     # survival (usual just the empty dictionary {})
     actions = survive(state, queue)
 
+    # decide on actions for
+    conversions(state, queue, actions)
+
     # update which yards should operate under fifo system
     # and strip any ships on fifo yards from the queue
-    global fifos
     fifos.update(state)
     fifos.strip(state, queue)
 
     # update any special targets for our ships such as opponent
     # ships/yards that should be targeted by our hunters
-    global targets
     targets.update(state)
 
     # now decide on "normal" actions for the remaining actors
@@ -43,11 +44,10 @@ def agent(obs, config):
             actions[actor] = action
 
     # update the global statistics we track across all turns
-    global stats
     stats.update(state)
 
     if state.step == 398:
-        print(f"{targets.conversions} / {targets.total_bounties} = {round(targets.conversions / targets.total_bounties, 2)} ")
+        print(f"{targets.conversions} / {targets.total_bounties} = {round(targets.conversions / (targets.total_bounties + 0.01), 2)} ")
         print(f"{targets.total_loot}")
 
     tock = time()

@@ -53,18 +53,18 @@ class Targets:
             # will be empty...
             hunters_inds = np.argpartition(ship_val, num_hunters - 1)
             hunters_inds = hunters_inds[0:num_hunters]
+
+            #############################
+            # q = 1 - np.sum(state.halite_map) / state.config.startingHalite
+            # q = max(0, q)
+            # q = q if q > MIN_HUNTERS_PER_SHIP else 0
+            # cut = np.quantile(state.my_ship_hal, q)
+            # hunters_inds = state.my_ship_hal < cut
+            #############################
+
             fifo_bool = np.in1d(state.my_ship_pos, fifos.fifo_pos)
             fifo_inds = np.flatnonzero(fifo_bool)
             hunters_inds = np.setdiff1d(hunters_inds, fifo_inds)
-
-
-            q = 1 - np.sum(state.halite_map) / state.config.startingHalite
-            q = max(0, q)
-            q = q if q > MIN_HUNTERS_PER_SHIP else 0
-            cut = np.quantile(state.my_ship_hal, q)
-            hunters_inds = state.my_ship_hal < cut
-
-
             self.hunters_pos = state.my_ship_pos[hunters_inds]
             self.hunters_hal = state.my_ship_hal[hunters_inds]
 
@@ -127,19 +127,18 @@ class Targets:
                          if key in self.ship_targets]).astype(int)
 
         # get the indices of the ships that are already targeted
-        # if a ship is too close to a friendly yard or no longer has
-        # enough hunters nearby, it will probably escape. so we remove such
-        # ships from the targets
+        # if a ship is too close to a friendly yard, it will probably escape
+        # so we remove such ships from the targets
         # (note: & / | / ~ = and / or / not in numpy compatible way)
         target_bool = np.in1d(opp_ship_pos, prev)
-        target_bool = target_bool & (opp_ship_dis >= 2) #& (nearby >= 3)
+        target_bool = target_bool & (opp_ship_dis >= 2)
         target_inds = np.flatnonzero(target_bool)
 
         # the pool of possible new targets consists of non-targeted ships that
-        # are trapped (vulnerability > 1), have 3 hunters nearby, and
-        # aren't too close to a friendly yard
-        candidates = ~target_bool
-        candidates = candidates & (opp_ship_dis >= 2) & (opp_ship_hal > 0)
+        # are trapped (vulnerability > 1), have positive cargo, and aren't too
+        # close to a friendly yard
+        candidates = ~target_bool & (nearby >= 1)
+        candidates = candidates & (opp_ship_dis >= 3)
         candidates = candidates & (opp_ship_vul > 1)
 
         # we compute scores for each of the candidate ships indicating
@@ -241,6 +240,10 @@ class Targets:
         inds = np.flatnonzero(pos_inds & hal_inds)
         positions = np.append(positions, self.ship_targets_pos[inds])
         rewards = np.append(rewards, self.ship_targets_rew[inds])
+
+        # inds = np.flatnonzero(self.ship_targets_hal > hal)
+        # positions = np.append(positions, self.ship_targets_pos[inds])
+        # rewards = np.append(rewards, self.ship_targets_rew[inds])
 
         # add close yard targets when we have no cargo. since the reward
         # for the yards is lower, hunters will automatically prefer going

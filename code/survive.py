@@ -6,11 +6,12 @@ def survive(state, queue):
         # if so, convert it, update state, and return to normal operation
         cargo = lambda ship: state.my_ships[ship][1]
         max_cargo = max(queue.ships.keys(), key=cargo)
-        pos, hal = state.my_ships[max_cargo]
-        if hal + state.my_halite >= state.config.convertCost:
+
+        if "CONVERT" in state.legal_actions(max_cargo):
             queue.remove(max_cargo)
             actions[max_cargo] = "CONVERT"
             state.update(max_cargo, "CONVERT")
+
         # otherwise instruct all ships to survive as long as possible while
         # collecting as much halite as possible
         else:
@@ -31,9 +32,7 @@ def run_and_collect(state, queue):
 
     while queue.pending():
         # schedule the ship with most halite
-        cargo = lambda ship: state.my_ships[ship][1]
-        ship = max(queue.ships.keys(), key=cargo)
-        queue.remove(ship)
+        ship = queue.schedule(state)
 
         pos, hal = state.my_ships[ship]
 
@@ -77,8 +76,7 @@ def spawn_maximum(state, queue):
 
     while queue.pending():
         # schedule the next yard
-        yard = min(queue.yards, key=queue.yards.get)
-        queue.remove(yard)
+        yard = queue.schedule(state)
 
         # list of legal moves
         legal = state.legal_actions(yard)

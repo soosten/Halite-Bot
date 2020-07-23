@@ -46,8 +46,6 @@ class State:
         # sets a number of numpy arrays deriving from self.my_ships, etc
         self.set_derived()
 
-        # compute clusters used for shipyard conversion
-        self.make_clusters()
         return
 
     def set_opp_data(self, obs):
@@ -62,8 +60,20 @@ class State:
             self.opp_yards.update(obs.players[opp][1])
             self.opp_ships.update(obs.players[opp][2])
 
-        # dict of lists. for each opponent has halite, yard positions, ship
-        # positions, ship halite as numpy arrays
+        # arrays containing ship/yard data for all opponents
+        self.opp_yard_pos = np.array(list(self.opp_yards.values())).astype(int)
+
+        if len(self.opp_ships) != 0:
+            poshal = np.array(list(self.opp_ships.values()))
+            self.opp_ship_pos, self.opp_ship_hal = np.split(poshal, 2, axis=1)
+            self.opp_ship_pos = np.ravel(self.opp_ship_pos).astype(int)
+            self.opp_ship_hal = np.ravel(self.opp_ship_hal).astype(int)
+        else:
+            self.opp_ship_pos = np.array([]).astype(int)
+            self.opp_ship_hal = np.array([]).astype(int)
+
+        # now construct a dict of lists with halite, yard positions, ship
+        # positions, ship halite for each opponent as numpy arrays
         self.opp_data = {}
         for opp in self.opp_ids:
             halite, yards, ships = obs.players[opp]
@@ -81,12 +91,11 @@ class State:
 
         return
 
-    # several function need all ship positions as numpy arrays
+    # several function need all our ship/yard positions as numpy arrays
     # these arrays need to be set by init() and also updated by update()
     # do this by calling set_derived()
     def set_derived(self):
         self.my_yard_pos = np.array(list(self.my_yards.values())).astype(int)
-        self.opp_yard_pos = np.array(list(self.opp_yards.values())).astype(int)
 
         if len(self.my_ships) != 0:
             poshal = np.array(list(self.my_ships.values()))
@@ -97,84 +106,7 @@ class State:
             self.my_ship_pos = np.array([]).astype(int)
             self.my_ship_hal = np.array([]).astype(int)
 
-        if len(self.opp_ships) != 0:
-            poshal = np.array(list(self.opp_ships.values()))
-            self.opp_ship_pos, self.opp_ship_hal = np.split(poshal, 2, axis=1)
-            self.opp_ship_pos = np.ravel(self.opp_ship_pos).astype(int)
-            self.opp_ship_hal = np.ravel(self.opp_ship_hal).astype(int)
-        else:
-            self.opp_ship_pos = np.array([]).astype(int)
-            self.opp_ship_hal = np.array([]).astype(int)
-
         return
-
-    def make_clusters(self):
-        # array of all sites we are currently occupying
-        self.cluster_pos = np.union1d(self.my_ship_pos, self.my_yard_pos)
-
-        # if there are not enough sites to cluster, set them all as outliers
-        if self.cluster_pos.size <= MIN_CLUSTER_SIZE:
-            self.cluster_labels = - np.ones_like(self.cluster_pos)
-
-        # otherwise, we create a weighte graph for clustering. the idea is
-        # that positions will be in separate clusters if there are opponent
-        # ships/yards separating them and if there are two many of our
-        # own ships in the way
-        else:
-            # create weights similar to those in make_weights() (see comments
-            # there). unlike make_weights() we don't want to remove any weights
-            # on our own yards here
-            my_weight, opp_weight = GRAPH_MY_WEIGHT, GRAPH_OPP_WEIGHT
-
-            weights = np.ones_like(self.sites)
-
-            weights += 0 * my_weight * \
-                np.sum(self.dist[self.my_ship_pos, :] <= 1, axis=0)
-
-            if self.opp_ship_pos.size != 0:
-                weights += opp_weight * \
-                    np.sum(self.dist[self.opp_ship_pos, :] <= 2, axis=0)
-
-            if self.opp_yard_pos.size != 0:
-                weights[self.opp_yard_pos] += opp_weight
-
-            graph = make_graph_csr(self, weights)
-
-            # compute graph distances to all cluster sites
-            self.cluster_dists = dijkstra(graph, indices=self.cluster_pos)
-            dist_matrix = self.cluster_dists[:, self.cluster_pos]
-
-            # run the OPTICS clustering algorithm
-            model = OPTICS(min_samples=MIN_SAMPLES,
-                           min_cluster_size=MIN_CLUSTER_SIZE,
-                           metric="precomputed")
-
-            # ignore outlier warnings from OPTICS
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                self.cluster_labels = model.fit_predict(dist_matrix)
-
-        return
-
-    def get_cluster(self, pos):
-        label = self.cluster_labels[self.cluster_pos == pos]
-
-        # if the label is empty, the position was not in the cluster
-        # positions - return an empty cluster
-        if label.size == 0:
-            cluster = np.array([]).astype(int)
-
-        # if the label is -1, the position is an outlier
-        # return a cluster with only this position
-        elif label == -1:
-            cluster = np.array([pos])
-
-        # otherwise the position is in some cluster - return it
-        else:
-            cluster_inds = np.flatnonzero(self.cluster_labels == label)
-            cluster = self.cluster_pos[cluster_inds]
-
-        return cluster
 
     def newpos(self, pos, action):
         if (action is None) or (action == "CONVERT"):

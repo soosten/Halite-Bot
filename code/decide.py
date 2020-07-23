@@ -4,58 +4,51 @@ def decide(state, actor):
                    if not state.self_collision(actor, action)]
 
     if actor in state.my_ships:
-        # check whether we should convert
-        if "CONVERT" in no_self_col and should_convert(actor, state):
-            decision = "CONVERT"
+        pos, hal = state.my_ships[actor]
 
-        # if not, choose a target and head towards it
-        else:
-            pos, hal = state.my_ships[actor]
+        # construct a weighted graph to calculate distances on
+        weights = make_weights(actor, state)
+        graph = make_graph_csr(state, weights)
 
-            # construct a weighted graph to calculate distances on
-            weights = make_weights(actor, state)
-            graph = make_graph_csr(state, weights)
+        # calculate the distance from all sites to the ship
+        # also calculate the distance from all sites to the immediate
+        # neighbors of ship - then we can easily take a step "towards"
+        # any given site later
+        nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
+        hood = np.array([state.newpos(pos, move) for move in nnsew])
+        hood_dists = dijkstra(graph, indices=hood)
+        ship_dists = hood_dists[nnsew.index(None), :]
 
-            # calculate the distance from all sites to the ship
-            # also calculate the distance from all sites to the immediate
-            # neighbors of ship - then we can easily take a step "towards"
-            # any given site later
-            nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
-            hood = np.array([state.newpos(pos, move) for move in nnsew])
-            hood_dists = dijkstra(graph, indices=hood)
-            ship_dists = hood_dists[nnsew.index(None), :]
+        # calculate the distances from all sites to nearest yard
+        yard_dists = dijkstra(graph, indices=state.my_yard_pos, min_only=True)
 
-            # calculate the distances from all sites to nearest yard
-            yard_dists = dijkstra(graph, indices=state.my_yard_pos,
-                                  min_only=True)
+        # make an effective map of the relative rewards at each site
+        effmap = make_map(actor, state)
 
-            # make an effective map of the relative rewards at each site
-            effmap = make_map(actor, state)
+        # ignore log(0) = -inf warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
 
-            # ignore log(0) = -inf warnings
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
+            # the idea is that the expected value of going to any site is
+            # the reward at that site, discounted by the time it takes to
+            # get to the site and back to the nearest yard
+            rate = interest_rate(state, actor)
+            values = np.log(hal + effmap) \
+                   - np.log((1 + rate)) * (1 + yard_dists + ship_dists)
 
-                # the idea is that the expected value of going to any site is
-                # the reward at that site, discounted by the time it takes to
-                # get to the site and back to the nearest yard
-                rate = interest_rate(state, actor)
-                values = np.log(hal + effmap) \
-                       - np.log((1 + rate)) * (1 + yard_dists + ship_dists)
+            # don't want to apply this formula for the yard locations
+            # because it causes ships to idle one step away from the yard
+            values[state.my_yard_pos] = np.log(hal) \
+                - np.log((1 + rate)) * ship_dists[state.my_yard_pos]
 
-                # don't want to apply this formula for the yard locations
-                # because it causes ships to idle one step away from the yard
-                values[state.my_yard_pos] = np.log(hal) \
-                    - np.log((1 + rate)) * ship_dists[state.my_yard_pos]
+        # the destination is the site with the highest reward
+        destination = values.argmax()
 
-            # the destination is the site with the highest reward
-            destination = values.argmax()
-
-            # produce a list of candidate moves and try to decrease
-            # distance to destination as much as possible
-            candidates = filter_moves(actor, state, destination)
-            dist_after = lambda x: hood_dists[nnsew.index(x), destination]
-            decision = min(candidates, key=dist_after)
+        # produce a list of candidate moves and try to decrease
+        # distance to destination as much as possible
+        candidates = filter_moves(actor, state, destination)
+        dist_after = lambda x: hood_dists[nnsew.index(x), destination]
+        decision = min(candidates, key=dist_after)
 
     elif actor in state.my_yards:
         if "SPAWN" in no_self_col and should_spawn(state, actor):
@@ -77,7 +70,11 @@ def should_spawn(state, actor=None):
         # then check if the yard is a fifo yard without a ship
         # and spawn if this is the case
         if pos in fifos.fifo_pos and pos not in state.my_ship_pos:
-            return True
+            if state.total_steps - state.step > STEPS_FINAL:
+                return True
+
+    # if state.my_yard_pos.size < 2 and state.my_halite < 1000:
+    #     return False
 
     # my number of ships (not counting fifo) and score = halite + cargo
     my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
@@ -91,7 +88,6 @@ def should_spawn(state, actor=None):
     max_opp_score = max([score(opp) for opp in state.opp_data.values()])
 
     # don't spawn if we have the maximum number of ships
-    # max_ships = min(MAX_SHIPS, max_opp_ships + 15)
     if my_ships >= MAX_SHIPS:
         return False
 
@@ -128,62 +124,13 @@ def should_spawn(state, actor=None):
     return my_ships < min_ships
 
 
-def should_convert(actor, state):
-    # decrease SHIPS_PER_YARD if we have a lot of ships
-    ships_per_yard = BASELINE_SHIPS_PER_YARD
-    num_ships = len(state.my_ships)
-    ships_per_yard += (num_ships > 25) + (num_ships > 35)
-    max_yards = state.my_ship_pos.size // ships_per_yard
-
-    # don't build too many yards per ship
-    if state.my_yard_pos.size >= max_yards:
-        return False
-
-    # keep only a minimal number of yards at the end of the game
-    # survival() already guarantees that we always have at least one
-    if state.total_steps - state.step < STEPS_FINAL:
-        return False
-
-    # get the cluster containing our ship
-    pos, hal = state.my_ships[actor]
-    cluster = state.get_cluster(pos)
-
-    # don't build a yard if the ship is an outlier
-    if cluster.size <= 1:
-        return False
-
-    # don't build a yard if the cluster already has a yard
-    if np.intersect1d(cluster, state.my_yard_pos).size != 0:
-        return False
-
-    # don't build a yard if there are not enough halite cells nearby
-    hood = np.amin(state.dist[pos, :], axis=0) <= HALITE_CELL_RADIUS
-    halite_cells = np.count_nonzero(state.halite_map[hood])
-    if halite_cells < MIN_HALITE_CELLS:
-        return False
-
-    # finally only build a yard if we maximize the mean l1 distance
-    # to the yards we already own. if this is not the case, the ship
-    # in the cluster that does maximize this should convert instead
-    mean_dists = np.mean(state.dist[state.my_yard_pos, :], axis=0)
-    if mean_dists[pos] < np.max(mean_dists[cluster]):
-        return False
-
-    # if none of the above restrictions apply, build a yard
-    return True
-
-
 def filter_moves(ship, state, destination):
     pos, hal = state.my_ships[ship]
 
-    legal = state.legal_actions(ship)
-
-    # conversion was already considered
-    if "CONVERT" in legal:
-        legal.remove("CONVERT")
+    nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
 
     # no self collisions
-    no_self_col = [move for move in legal if not
+    no_self_col = [move for move in nnsew if not
                    state.self_collision(ship, move)]
 
     # determine what yards parameter to pass to opp_collision. if our final
@@ -201,12 +148,12 @@ def filter_moves(ship, state, destination):
 
     # usually strong_no_opp_col has moves that don't result in collision with
     # an enemy ship or yard (unless we set a different default above)
-    strong_no_opp_col = [move for move in legal if not
+    strong_no_opp_col = [move for move in nnsew if not
                          state.opp_collision(ship, move, strict, yards)]
 
     # moves which don't result in collision with an enemy ship
     # that has strictly less cargo
-    weak_no_opp_col = [move for move in legal if not
+    weak_no_opp_col = [move for move in nnsew if not
                        state.opp_collision(ship, move, False, yards)]
 
     # ideally consider moves that don't collide at all
@@ -232,7 +179,7 @@ def filter_moves(ship, state, destination):
 
     # if this is impossible, make a legal move
     if len(candidates) == 0:
-        candidates = legal
+        candidates = nnsew
 
     # there are two situations where None is not a good move and
     # we would prefer to remove it from candidates if possible
