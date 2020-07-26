@@ -11,7 +11,7 @@ An entry to this competition consists of a file `submission.py`, which is proces
 
 
 ### Dependencies
-The code depends only on standard libraries (mainly numpy, scipy, and scikit-learn). However, the script `build.py` requires the `kaggle_environments` package to run and render the simulations locally. The package can be installed by running
+The code depends only on standard libraries and the scipy stack. However, the script `build.py` requires the `kaggle_environments` package to run and render the simulations locally. The package can be installed by running
 
 `pip install kaggle_environments`
 

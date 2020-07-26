@@ -39,19 +39,42 @@ class Fifos:
         return
 
     def resolve(self, state, queue, actor, action):
-        # if we spawned at a fifo yard and there is a ship there,
-        # schedule the outgoing ship to make room
-        if actor in state.my_yards:
+        # find out whether the action requires any fifo updates
+        if actor in state.my_yards and action == "SPAWN":
             pos = state.my_yards[actor]
-            if pos in self.stripped and action == "SPAWN":
-                ship, moves = self.stripped[pos]
-                queue.ships.update({ship: moves})
+        elif actor in state.my_ships:
+            pos = state.my_ships[actor][0]
+        else:
+            pos = -1
 
-        # same if a ship moves onto a fifo yard and there is a ship there
-        if actor in state.my_ships:
-            pos, hal = state.my_ships[actor]
-            if pos in self.stripped:
-                ship, moves = self.stripped[pos]
-                queue.ships.update({ship: moves})
+        ship, moves = self.stripped.get(pos, [None, None])
+
+        # if ship is None, the actor was not on a fifo position or a
+        # yard that didn't spawn so nothing to do here
+        if ship is None:
+            return
+
+        # otherwise insert the new ship into the queue
+        queue.ships.update({ship: moves})
+
+        # and compute a heuristic target data for ship
+        # see the comments in targets.calculate()
+        targets.ship_list.append(ship)
+        targets.distances[ship] = targets.calc_distances(ship, state)
+        dupes, no_dupes = targets.calc_rewards(ship, state, no_dupes=True)
+        targets.rewards[ship] = dupes
+
+        # we choose a destination that has not yet been selected by the
+        # optimal assignment algorithm for the non-fifo ships
+        taken = np.array(list(targets.destinations.values()))
+        no_dupes[taken] = 0
+        targets.destinations[ship] = no_dupes.argmax()
+        targets.values[ship] = no_dupes.max()
+
+        hood_dists = targets.distances[ship][0]
+        dest_dists = hood_dists[:, targets.destinations[ship]]
+        dist_after = lambda x: dest_dists[targets.nnsew.index(x)]
+        targets.rankings[ship] = targets.nnsew.copy()
+        targets.rankings[ship].sort(key=dist_after)
 
         return

@@ -1,5 +1,4 @@
 def agent(obs, config):
-    tick = time()
     # internal game state, to be updated as we decide on actions
     state = State(obs, config)
 
@@ -12,7 +11,7 @@ def agent(obs, config):
     # survival (usual just the empty dictionary {})
     actions = survive(state, queue)
 
-    # decide on actions for
+    # decide if any ships should convert
     conversions(state, queue, actions)
 
     # update which yards should operate under fifo system
@@ -22,7 +21,10 @@ def agent(obs, config):
 
     # update any special targets for our ships such as opponent
     # ships/yards that should be targeted by our hunters
-    targets.update(state)
+    bounties.update(state)
+
+    # set preferences for where each ship would like to go
+    targets.calculate(state, queue)
 
     # now decide on "normal" actions for the remaining actors
     while queue.pending():
@@ -47,10 +49,7 @@ def agent(obs, config):
     stats.update(state)
 
     if state.step == 398:
-        print(f"{targets.conversions} / {targets.total_bounties} = {round(targets.conversions / (targets.total_bounties + 0.01), 2)} ")
-        print(f"{targets.total_loot}")
-
-    tock = time()
-    print(f"step {state.step + 1} took {round(tock - tick, 3)} seconds")
+        print(f"{bounties.conversions} / {bounties.total_bounties} = {round(bounties.conversions / bounties.total_bounties, 2)}")
+        print(f"{bounties.total_loot}")
 
     return actions

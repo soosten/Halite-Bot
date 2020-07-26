@@ -33,10 +33,10 @@ class Queue:
         stuck = (ship for ship, val in self.ships.items() if val.size <= 1)
         nextup = next(stuck, None)
 
-        # if there are no such ships, choose the one with the most cargo
+        # if there are no such ships, choose the one with the highest value
         if nextup is None:
-            cargo = lambda ship: state.my_ships[ship][1]
-            nextup = max(self.ships, default=None, key=cargo)
+            value = lambda ship: targets.values.get(ship, 0)
+            nextup = max(self.ships, default=None, key=value)
 
         # if there are no ships, schedule yards by priority
         if nextup is None:

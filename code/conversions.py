@@ -8,10 +8,6 @@ class Conversions:
         if not self.need_yard(state):
             return
 
-        # yard_dist = lambda s: np.amin(state.dist[state.my_yard_pos, s[0]])
-        # hood = lambda s: np.flatnonzero(state.dist[s[0], :] <= 4)
-        # score = lambda s: np.sum(state.halite_map[hood(s)] > 0)
-
         def yard_dist(ship):
             dist = state.dist[state.my_yard_pos, state.my_ships[ship][0]]
             return np.amin(dist)
