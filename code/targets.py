@@ -66,7 +66,7 @@ class Targets:
 
         return
 
-    def calc_rewards(self, ship, state, no_dupes=False):
+    def calc_rewards(self, ship, state, unappended=False):
         hal = state.my_ships[ship][1]
 
         # get the relevant distances
@@ -86,15 +86,15 @@ class Targets:
         minable = state.halite_map > 0
         H = state.halite_map[minable]
 
-        # calculate alphas and the indices (in minable!) for which
-        # the optimum is atained in the interior
+        # calculate the optimal turn to mine each site M
         alpha = 1 + hal / (a * H)
-
         xM = alpha / (1 - (np.log(x) / np.log(1 + r)))
-
         M = np.ones_like(state.halite_map)
         M[minable] = np.log(xM) / np.log(x)
         M[minable] = np.fmax(np.round(M[minable]), 1)
+
+        # set M = 0 on yards so that there is a preference for the yard
+        # over the site next to the yard in D+M
         M[state.my_yard_pos] = 0
 
         # plug the optimizing Ms into the formula for halite
@@ -104,10 +104,11 @@ class Targets:
         # insert the reward of going home to a shipyard
         reward_map[state.my_yard_pos] = hal
 
-        # insert bounties for opponent ships/yards
+        # insert bounties for opponent ships
         ship_hunt_pos, ship_hunt_rew = bounties.get_ship_targets(ship, state)
         reward_map[ship_hunt_pos] += ship_hunt_rew
 
+        # insert bounties for opponent yards
         yard_hunt_pos, yard_hunt_rew = bounties.get_yard_targets(ship, state)
         reward_map[yard_hunt_pos] += yard_hunt_rew
 
@@ -120,10 +121,12 @@ class Targets:
         duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
 
         # append the duplicate rewards
-        if no_dupes:
-            return np.append(duplicate_rewards, reward_map), reward_map
+        appended = np.append(duplicate_rewards, reward_map)
+
+        if unappended:
+            return appended, reward_map
         else:
-            return np.append(duplicate_rewards, reward_map)
+            return appended
 
     def interest(self, ship, state):
         # always have a minimum interest rate
@@ -176,15 +179,15 @@ class Targets:
         # multiple ships should get higher weights
 
         # heuristic: going "through a site" usually takes two steps. if you
-        # to go "around the site" while staying 1 step away it takes 4 steps so
-        # the weight should be > 4/2 = 2
-        my_weight = GRAPH_MY_WEIGHT
+        # to go "around the site" while staying 1 step away it takes 4 steps
+        # so the weight should be > 4/2 = 2
+        mw = GRAPH_MY_WEIGHT
 
         # going "through 3 sites" usually takes 4 steps. if you want to go
         # want "around the 3 sites" while staying 2 steps from the middle, it
         # takes 8 steps so the weight should be > 8/4 = 2. but we want to be
         # very scared of opponent ships so we set this to 4
-        opp_weight = GRAPH_OPP_WEIGHT
+        ow = GRAPH_OPP_WEIGHT
 
         pos, hal = state.my_ships[actor]
 
@@ -194,20 +197,18 @@ class Targets:
         friendly = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos)
         friendly = friendly[state.dist[pos, friendly] > 1]
         if friendly.size != 0:
-            weights += my_weight * np.sum(state.dist[friendly, :] <= 1, axis=0)
+            weights += mw * np.sum(state.dist[friendly, :] <= 1, axis=0)
 
         # only consider opponent ships with less halite
         less_hal = state.opp_ship_pos[state.opp_ship_hal <= hal]
         if less_hal.size != 0:
-            weights += opp_weight * np.sum(state.dist[less_hal, :] <= 2, axis=0)
+            weights += ow * np.sum(state.dist[less_hal, :] <= 2, axis=0)
 
         # also need to go around enemy shipyards
         if state.opp_yard_pos.size != 0:
-            weights[state.opp_yard_pos] += opp_weight
+            weights[state.opp_yard_pos] += ow
 
         # remove any weights on the yards so these don't get blocked
-        yard_hood = np.amin(state.dist[state.my_yard_pos, :]) <= 2
-
         weights[state.my_yard_pos] = 0
 
         return weights

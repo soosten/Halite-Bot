@@ -1,5 +1,3 @@
-# check for bugs here
-
 class Bounties:
     def __init__(self):
         self.ship_targets = []
@@ -92,11 +90,11 @@ class Bounties:
         target_bool = target_bool & (opp_ship_dis >= 1)
         target_inds = np.flatnonzero(target_bool)
 
-        # the pool of possible new targets consists of non-targeted ships that
-        # are trapped (vulnerability > 1), have positive cargo, and aren't too
-        # close to a friendly yard
-        # candidates = ~target_bool & (opp_ship_dis >= 3) & (nearby >= 3)
-        candidates = ~target_bool & (opp_ship_dis >= 3) & (nearby >= 1) & (opp_ship_vul > 1)
+        # the pool of possible new targets consists of non-targeted ships
+        # that are trapped (vulnerability > 1), have at least one hunter
+        # nearby, and aren't too close to a friendly yard
+        candidates = ~target_bool & (opp_ship_vul > 1)
+        candidates = candidates & (opp_ship_dis >= 3) & (nearby >= 1)
 
         # we compute scores for each of the candidate ships indicating
         # the risk/reward of attacking them
@@ -136,10 +134,6 @@ class Bounties:
         # write the new targets in the ship_targets list
         self.ship_targets = [key for key, val in state.opp_ships.items()
                              if val[0] in self.ship_targets_pos]
-
-        print(f"targets {state.step+1}: ratio={ratio}")
-        for val in self.ship_targets_pos:
-            print(f"   ({val % 21}, {val // 21})")
 
         return
 

@@ -61,7 +61,7 @@ class Fifos:
         # see the comments in targets.calculate()
         targets.ship_list.append(ship)
         targets.distances[ship] = targets.calc_distances(ship, state)
-        dupes, no_dupes = targets.calc_rewards(ship, state, no_dupes=True)
+        dupes, no_dupes = targets.calc_rewards(ship, state, unappended=True)
         targets.rewards[ship] = dupes
 
         # we choose a destination that has not yet been selected by the
@@ -71,6 +71,8 @@ class Fifos:
         targets.destinations[ship] = no_dupes.argmax()
         targets.values[ship] = no_dupes.max()
 
+        # and produce a ranking of moves depending on how much
+        # they decrease the distance to our new target
         hood_dists = targets.distances[ship][0]
         dest_dists = hood_dists[:, targets.destinations[ship]]
         dist_after = lambda x: dest_dists[targets.nnsew.index(x)]

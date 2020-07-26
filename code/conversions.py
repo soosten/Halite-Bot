@@ -22,16 +22,19 @@ class Conversions:
 
         convert = max(candidates, default=None, key=candidates.get)
 
-        if convert is not None:
-            if "CONVERT" in state.legal_actions(convert):
-                print(f"converting score = {candidates[convert]}")
-                queue.remove(convert)
-                state.update(convert, "CONVERT")
-                actions[convert] = "CONVERT"
+        if convert is not None and "CONVERT" in state.legal_actions(convert):
+            queue.remove(convert)
+            state.update(convert, "CONVERT")
+            actions[convert] = "CONVERT"
 
         return
 
     def need_yard(self, state):
+        # don't build any yards in the final phase of the game
+        # survive() ensures we keep at least one
+        if state.total_steps - state.step < STEPS_FINAL:
+            return False
+
         # number of ships without fifo ships
         num_ships = state.my_ship_pos.size - fifos.fifo_pos.size
 

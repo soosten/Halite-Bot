@@ -6,7 +6,7 @@ GRAPH_OPP_WEIGHT = 4
 MIN_YARD_DIST = 7
 HALITE_RADIUS = 4
 MIN_HALITE_CELLS = 20
-BASELINE_SHIPS_PER_YARD = 6
+BASELINE_SHIPS_PER_YARD = 8
 
 # how many steps are the "initial" and "final" phases of the game
 STEPS_INITIAL = 50
@@ -29,7 +29,7 @@ YARD_HUNTING_RADIUS = 6
 # rate option
 BASELINE_INTEREST = 0.01
 SPAWN_PREMIUM = 0.01
-STEPS_SPIKE = 20
+STEPS_SPIKE = 15
 
 # whether we should operate the shipyards in FIFO mode
 USE_FIFO_SYSTEM = True

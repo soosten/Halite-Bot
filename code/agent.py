@@ -49,7 +49,7 @@ def agent(obs, config):
     stats.update(state)
 
     if state.step == 398:
-        print(f"{bounties.conversions} / {bounties.total_bounties} = {round(bounties.conversions / bounties.total_bounties, 2)}")
+        print(f"{bounties.conversions} / {bounties.total_bounties} = {round(bounties.conversions / (0.01 + bounties.total_bounties), 2)}")
         print(f"{bounties.total_loot}")
 
     return actions
