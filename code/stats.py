@@ -31,18 +31,15 @@ class Stats:
         all_yard_pos = np.union1d(self.state.my_yard_pos,
                                   self.state.opp_yard_pos)
 
-        # for every opponent we check whether one of the yards of the
-        # other three players has been destroyed during the last turn
-        # if one of the opponent ships was next to the destroyed yard
-        # on the previous turn, we add that opponent to the list of
-        # yard attackers. the check isn't foolproof if there are two
-        # opponents near a yard.
-        for opp in self.last_state.opp_data:
-            if opp in self.yard_attackers:
-                continue
-
+        # for every opponent that has not yet attacked a yard, we check
+        # whether one of the yards of the other three players has been
+        # destroyed during the last turn if one of the opponent ships was
+        # next to the destroyed yard on the previous turn, we add that
+        # opponent to the list of yard attackers. the check isn't foolproof
+        # if there are two opponents near a yard...
+        opps = set(self.last_state.opp_data) - set(self.yard_attackers)
+        for opp in opps:
             last_yard_pos, last_ship_pos = self.last_state.opp_data[opp][1:3]
-
             yard_pos = self.state.opp_data[opp][1]
 
             last_other_yards = np.setdiff1d(last_all_yard_pos, last_yard_pos)

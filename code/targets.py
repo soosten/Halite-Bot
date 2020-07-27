@@ -1,258 +1,234 @@
 class Targets:
+
     def __init__(self):
-        self.hunters = {}
-        self.hunters_pos = np.array([]).astype(int)
-        self.hunters_hal = np.array([]).astype(int)
+        self.nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
 
-        self.ship_targets = []
-        self.ship_targets_pos = np.array([]).astype(int)
-        self.ship_targets_hal = np.array([]).astype(int)
-        self.ship_targets_rew = np.array([]).astype(int)
-
-        self.yard_targets_pos = np.array([]).astype(int)
-        self.yard_targets_rew = np.array([]).astype(int)
-
-        # stats - remove
-        self.total_bounties = 0
-        self.conversions = 0
-        self.total_loot = 0
+        self.ship_list = []
+        self.distances = {}
+        self.rewards = {}
+        self.destinations = {}
+        self.values = {}
+        self.rankings = {}
 
         return
 
-    def update(self, state):
-        self.set_hunters(state)
-        self.set_ship_targets(state)
-        self.set_yard_targets(state)
+    def calculate(self, state, queue):
+        # if there are no ships, there is nothing to do
+        if len(queue.ships) == 0:
+            return
+
+        # list of ships -  indices of ships in matrices and arrays
+        # will be the index in this list
+        self.ship_list = list(queue.ships.keys())
+        self.num_ships = len(self.ship_list)
+
+        # calculate distances on the relevant weighted graphs
+        self.distances = {ship: self.calc_distances(ship, state)
+                          for ship in self.ship_list}
+
+        # the optimal assignment will assign only one ship to each site
+        # but we want more than one ship to go back to each yard so
+        # we add duplicates of the yards to the rewards to ensure this
+        self.duplicates = np.tile(state.my_yard_pos, self.num_ships - 1)
+        self.ind_to_site = np.append(self.duplicates, state.sites)
+
+        # calculate the value per step of going to a specific site
+        self.rewards = {ship: self.calc_rewards(ship, state)
+                        for ship in self.ship_list}
+
+        # find the optimal assignment of ships to destinations
+        # the optimal assignment assignment assigns ship_inds[i] to
+        # site_inds[i]
+        problem = np.vstack([self.rewards[ship] for ship in self.ship_list])
+        ship_inds, site_inds = assignment(problem, maximize=True)
+
+        # go through the solution of the optimal assignment problem and
+        # extract destinations, values, and move ranking functions
+        # for each ship
+        self.destinations = {}
+        self.values = {}
+        self.rankings = {}
+
+        for ship_ind, site_ind in zip(ship_inds, site_inds):
+            # first write destination and values
+            ship = self.ship_list[ship_ind]
+            self.destinations[ship] = self.ind_to_site[site_ind]
+            self.values[ship] = self.rewards[ship][site_ind]
+
+            # then store a copy of nnsew, sorted by how much the move
+            # decreases the distance to our target
+            hood_dists = self.distances[ship][0]
+            dest_dists = hood_dists[:, self.destinations[ship]]
+            dist_after = lambda x: dest_dists[self.nnsew.index(x)]
+            self.rankings[ship] = self.nnsew.copy()
+            self.rankings[ship].sort(key=dist_after)
+
         return
 
-    def set_hunters(self, state):
-        # determine hunters depending on cargo and halite on the map
-        if state.my_ship_pos.size == 0:
-            self.hunters = {}
+    def calc_rewards(self, ship, state, unappended=False):
+        hal = state.my_ships[ship][1]
+
+        # get the relevant distances
+        hood_dists, yard_dists = self.distances[ship]
+        ship_dists = hood_dists[self.nnsew.index(None), :]
+        D = ship_dists + yard_dists
+
+        # calculate halite gain per step that results from going
+        # to a site, mining it, and returning to the nearest yard,
+        # optimized over the numer of steps to mine the site for
+        # see the notes for a detailed explanation
+        x = (1 + state.config.regenRate) * (1 - state.config.collectRate)
+        a = 1 / (1 - x)
+        r = self.interest(ship, state)
+
+        # the sites for which the mining optimum makes sense
+        minable = state.halite_map > 0
+        H = state.halite_map[minable]
+
+        # calculate the optimal turn to mine each site M
+        alpha = 1 + hal / (a * H)
+        xM = alpha / (1 - (np.log(x) / np.log(1 + r)))
+        M = np.ones_like(state.halite_map)
+        M[minable] = np.log(xM) / np.log(x)
+        M[minable] = np.fmax(np.round(M[minable]), 1)
+
+        # set M = 0 on yards so that there is a preference for the yard
+        # over the site next to the yard in D+M
+        M[state.my_yard_pos] = 0
+
+        # plug the optimizing Ms into the formula for halite
+        # returned per step after traveling to each site
+        reward_map = hal + a * (1 - x ** M) * state.halite_map
+
+        # insert the reward of going home to a shipyard
+        reward_map[state.my_yard_pos] = hal
+
+        # insert bounties for opponent ships
+        ship_hunt_pos, ship_hunt_rew = bounties.get_ship_targets(ship, state)
+        reward_map[ship_hunt_pos] += ship_hunt_rew
+
+        # insert bounties for opponent yards
+        yard_hunt_pos, yard_hunt_rew = bounties.get_yard_targets(ship, state)
+        reward_map[yard_hunt_pos] += yard_hunt_rew
+
+        # discount each reward by how much time is lost by retrieving it
+        discounts = (1 + r) ** (D + M)
+        reward_map = reward_map * (1 + r) / discounts
+
+        # copy the ship yard rewards onto the duplicate ship yards
+        yard_rewards = reward_map[state.my_yard_pos]
+        duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
+
+        # append the duplicate rewards
+        appended = np.append(duplicate_rewards, reward_map)
+
+        if unappended:
+            return appended, reward_map
         else:
-            # determine a mining value of each ship based on its cargo
-            # and the amount of halite near it
-            # for each ship position x, hood_hal[x] is the average halite in
-            # the cells around x.
-            boolhood = state.dist[state.my_ship_pos, :] <= 3
-            hood = np.apply_along_axis(np.flatnonzero, 1, boolhood)
-            hood_hal = np.mean(state.halite_map[hood], axis=1)
-            ship_val = state.my_ship_hal + 0.5 * hood_hal
+            return appended
 
-            # choose a fraction of ships depending on halite on the map
-            q = MAX_HUNTERS_PER_SHIP
-            q -= np.sum(state.halite_map) / state.config.startingHalite
-            q = q if q > MIN_HUNTERS_PER_SHIP else 0
-            num_hunters = q * (state.my_ship_pos.size - fifos.fifo_pos.size)
-            num_hunters = int(num_hunters)
+    def interest(self, ship, state):
+        # always have a minimum interest rate
+        rate = BASELINE_INTEREST
 
-            # designate the num_hunters ships with lowest value as hunters
-            # and remove any fifo ships from the hunters
-            # if num_hunters = 0, we pass -1 to argpartition which sorts from
-            # the other end - but we don't care since the slice 0:num_hunters
-            # will be empty...
-            hunters_inds = np.argpartition(ship_val, num_hunters - 1)
-            hunters_inds = hunters_inds[0:num_hunters]
-            fifo_bool = np.in1d(state.my_ship_pos, fifos.fifo_pos)
-            fifo_inds = np.flatnonzero(fifo_bool)
-            hunters_inds = np.setdiff1d(hunters_inds, fifo_inds)
+        # add a premium if there are a lot of ships that can attack us
+        hal = state.my_ships[ship][1]
+        less_hal = state.opp_ship_pos[state.opp_ship_hal < hal]
+        rate += RISK_PREMIUM * less_hal.size
 
+        # add a premium of we want to spawn and need money
+        if should_spawn(state) and state.my_halite < state.config.spawnCost:
+            rate += SPAWN_PREMIUM
 
-            q = 1 - np.sum(state.halite_map) / state.config.startingHalite
-            q = max(0, q)
-            q = q if q > MIN_HUNTERS_PER_SHIP else 0
-            cut = np.quantile(state.my_ship_hal, q)
-            hunters_inds = state.my_ship_hal < cut
+        # make the rate huge at the end of the game (ships should come home)
+        if state.total_steps - state.step < STEPS_SPIKE:
+            rate += 0.7
 
+        # make sure the rate is no too close to 1 so formulas stay stable
+        rate = min(rate, 0.9)
 
-            self.hunters_pos = state.my_ship_pos[hunters_inds]
-            self.hunters_hal = state.my_ship_hal[hunters_inds]
+        return rate
 
-            # also keep hunters in dictionary form like state.my_ships
-            self.hunters = {key: val for key, val in state.my_ships.items()
-                            if val[0] in self.hunters_pos}
+    def calc_distances(self, ship, state):
+        pos = state.my_ships[ship][0]
 
-        return
+        # construct a weighted graph to calculate distances on
+        weights = self.make_weights(ship, state)
+        graph = self.make_graph_csr(state, weights)
 
-    def set_ship_targets(self, state):
-        # we choose new targets from a pool of opponent ships. to select the
-        # new targets we consider a score composed of "vulnerability" and
-        # cargo. to measure vulnerability, we construct a graph where the
-        # positions of our hunters have higher weights.
+        # calculate the distance from all sites to the ship
+        # also calculate the distance from all sites to the immediate
+        # neighbors of ship - then we can easily take a step "towards"
+        # any given site later
+        hood = np.array([state.newpos(pos, move) for move in self.nnsew])
+        hood_dists = dijkstra(graph, indices=hood, directed=False)
+
+        # calculate the distances from all sites to nearest yard
+        yard_dists = dijkstra(graph, indices=state.my_yard_pos,
+                              min_only=True, directed=False)
+
+        # store hood distances and yard distances for later
+        return hood_dists, yard_dists
+
+    def make_weights(self, actor, state):
         weights = np.ones_like(state.sites)
-        if self.hunters_pos.size != 0:
-            hood = state.dist[self.hunters_pos, :] <= 2
-            weights += GRAPH_MY_WEIGHT * np.sum(hood, axis=0)
 
-        mean_weight = np.mean(weights)
+        # ships contribute weights in the space they control (which is the
+        # ball of radius 1 or 2 around their position). sites controlled by
+        # multiple ships should get higher weights
 
-        graph = make_graph_csr(state, weights)
+        # heuristic: going "through a site" usually takes two steps. if you
+        # to go "around the site" while staying 1 step away it takes 4 steps
+        # so the weight should be > 4/2 = 2
+        mw = GRAPH_MY_WEIGHT
 
-        # calculate position, halite, and vulnerability for all opponent ships
-        # vulnerability is the ratio of distance to the nearest friendly yard
-        # on the weighted graph over distance to the nearest friendly yard on
-        # a graph with constant weights equal to mean_weight. a vulnerability
-        # greater than one means we have hunters obstructing the path to the
-        # nearest yard...
-        opp_ship_pos = np.array([]).astype(int)
-        opp_ship_hal = np.array([]).astype(int)
-        opp_ship_vul = np.array([]).astype(int)
-        opp_ship_dis = np.array([]).astype(int)
+        # going "through 3 sites" usually takes 4 steps. if you want to go
+        # want "around the 3 sites" while staying 2 steps from the middle, it
+        # takes 8 steps so the weight should be > 8/4 = 2. but we want to be
+        # very scared of opponent ships so we set this to 4
+        ow = GRAPH_OPP_WEIGHT
 
-        for opp in state.opp_data.values():
-            yards, ship_pos, ship_hal = opp[1:4]
+        pos, hal = state.my_ships[actor]
 
-            if yards.size == 0:
-                ship_vul = 10 * np.ones_like(ship_pos)
-                ship_dis = 10 * np.ones_like(ship_pos)
-            else:
-                graph_dist = dijkstra(graph, indices=yards, min_only=True)
-                graph_dist = graph_dist[ship_pos]
-                ship_dis = np.amin(state.dist[np.ix_(yards, ship_pos)], axis=0)
-                ship_vul = (1 + graph_dist) / (1 + mean_weight * ship_dis)
+        # ignore immediate neighbors in the friendly weights - this is handled
+        # automatically and the weights can cause traffic jams at close range
+        # also ignore weights of any ships on fifo yards
+        friendly = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos)
+        friendly = friendly[state.dist[pos, friendly] > 1]
+        if friendly.size != 0:
+            weights += mw * np.sum(state.dist[friendly, :] <= 1, axis=0)
 
-            opp_ship_pos = np.append(opp_ship_pos, ship_pos)
-            opp_ship_hal = np.append(opp_ship_hal, ship_hal)
-            opp_ship_vul = np.append(opp_ship_vul, ship_vul)
-            opp_ship_dis = np.append(opp_ship_dis, ship_dis)
+        # only consider opponent ships with less halite
+        less_hal = state.opp_ship_pos[state.opp_ship_hal <= hal]
+        if less_hal.size != 0:
+            weights += ow * np.sum(state.dist[less_hal, :] <= 2, axis=0)
 
-        # nearby contains the number of hunters within distance 3
-        # that also have strictly less cargo than the ship
-        nearby = state.dist[np.ix_(self.hunters_pos, opp_ship_pos)] <= 3
-        less_hal = self.hunters_hal[:, np.newaxis] < opp_ship_hal
-        nearby = np.sum(nearby & less_hal, axis=0)
+        # also need to go around enemy shipyards
+        if state.opp_yard_pos.size != 0:
+            weights[state.opp_yard_pos] += ow
 
-        # store current positions of previous targets that are still alive
-        prev = np.array([val[0] for key, val in state.opp_ships.items()
-                         if key in self.ship_targets]).astype(int)
+        # remove any weights on the yards so these don't get blocked
+        weights[state.my_yard_pos] = 0
 
-        # get the indices of the ships that are already targeted
-        # if a ship is too close to a friendly yard or no longer has
-        # enough hunters nearby, it will probably escape. so we remove such
-        # ships from the targets
-        # (note: & / | / ~ = and / or / not in numpy compatible way)
-        target_bool = np.in1d(opp_ship_pos, prev)
-        target_bool = target_bool & (opp_ship_dis >= 2) #& (nearby >= 3)
-        target_inds = np.flatnonzero(target_bool)
+        return weights
 
-        # the pool of possible new targets consists of non-targeted ships that
-        # are trapped (vulnerability > 1), have 3 hunters nearby, and
-        # aren't too close to a friendly yard
-        candidates = ~target_bool
-        candidates = candidates & (opp_ship_dis >= 2) & (opp_ship_hal > 0)
-        candidates = candidates & (opp_ship_vul > 1)
+    def make_graph_csr(self, state, weights):
+        nsites = state.map_size ** 2
 
-        # we compute scores for each of the candidate ships indicating
-        # the risk/reward of attacking them
-        # make the scores of ships that are not candidates negative
-        opp_ship_score = opp_ship_hal * opp_ship_vul
-        opp_ship_score[~candidates] = -1
+        # weight at any edge (x,y) is (w[x] + w[y])/2
+        site_weights = weights[state.sites]
+        n_weights = 0.5 * (site_weights + weights[state.north])
+        s_weights = 0.5 * (site_weights + weights[state.south])
+        e_weights = 0.5 * (site_weights + weights[state.east])
+        w_weights = 0.5 * (site_weights + weights[state.west])
 
-        # determine how many targets we would like to have and how many
-        # new targets we should/can build
-        num_targets = len(self.hunters) // HUNTERS_PER_TARGET
-        num_new_targets = max(num_targets - target_inds.size, 0)
-        num_new_targets = min(num_new_targets, np.sum(candidates))
+        # column indices for row i are in indices[indptr[i]:indptr[i+1]]
+        # and their corresponding values are in data[indptr[i]:indptr[i+1]]
+        indptr = 4 * state.sites
+        indptr = np.append(indptr, 4 * nsites)
+        indices = np.vstack((state.north, state.south, state.east, state.west))
+        indices = np.ravel(indices, "F")
+        data = np.vstack((n_weights, s_weights, e_weights, w_weights))
+        data = np.ravel(data, "F")
 
-        # we can take those num_new_targets ships with maximum score
-        # since scores are >= 0  and we forced the scores of non-candidate
-        # ships to equal -1. see comment before argpartition in set_hunters
-        new_inds = np.argpartition(-opp_ship_score, num_new_targets - 1)
-        target_inds = np.append(target_inds, new_inds[0:num_new_targets])
-
-        # stats - remove eventually
-        self.total_bounties += num_new_targets
-        gotem = np.array([stats.last_state.opp_ships[key][1] for key in
-                          self.ship_targets if key not in state.opp_ships])
-        self.conversions += gotem.size
-        self.total_loot += np.sum(gotem)
-
-        # set position/halite/rewards for the targets
-        self.ship_targets_pos = opp_ship_pos[target_inds]
-        self.ship_targets_hal = opp_ship_hal[target_inds]
-        self.ship_targets_rew = 1000 * np.ones_like(self.ship_targets_pos)
-
-        # write the new targets in the ship_targets list
-        self.ship_targets = [key for key, val in state.opp_ships.items()
-                             if val[0] in self.ship_targets_pos]
-
-        return
-
-    def set_yard_targets(self, state):
-        # we target the opponent whose score is closest to ours
-        my_score = state.my_halite + np.sum(state.my_ship_hal)
-        alive = lambda x: 0 < (state.opp_data[x][1].size
-                             + state.opp_data[x][2].size)
-        score = lambda x: alive(x) * (state.opp_data[x][0]
-                                    + np.sum(state.opp_data[x][3]))
-        score_diff = lambda x: np.abs(score(x) - my_score)
-        closest = min(state.opp_data, key=score_diff)
-
-        # depending on how many ships we have compared to others
-        my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
-        num_ships = lambda x: x[2].size
-        max_opp_ships = max([num_ships(x) for x in state.opp_data.values()])
-
-        # for most of the game, we only target yards if we have the most ships
-        should_attack = my_ships > max_opp_ships
-
-        # at the end of the game we target yards no matter what
-        should_attack |= (state.total_steps - state.step) < YARD_HUNTING_FINAL
-
-        # but stop attacking if we don't have a lot of ships anymore
-        should_attack &= my_ships >= YARD_HUNTING_MIN_SHIPS
-
-        # at the beginning of the game we never target yards
-        should_attack &= state.step > YARD_HUNTING_START
-
-        if should_attack:
-            opp_yards, opp_ships = state.opp_data[closest][1:3]
-
-            # in the final stage of the game we target all yards
-            if state.total_steps - state.step < YARD_HUNTING_FINAL:
-                self.yard_targets_pos = opp_yards
-            # before that we only target unprotected yards
-            else:
-                self.yard_targets_pos = np.setdiff1d(opp_yards, opp_ships)
-
-            # take 100 instead of 1000 here, so we prefer to target ships
-            # and big halite cells
-            self.yard_targets_rew = 100 * np.ones_like(self.yard_targets_pos)
-        else:
-            self.yard_targets_pos = np.array([]).astype(int)
-            self.yard_targets_rew = np.array([]).astype(int)
-
-        return
-
-    def get_arrays(self, actor, state):
-        # append targets/rewards here depending on the nature of the ship
-        positions = np.array([]).astype(int)
-        rewards = np.array([]).astype(int)
-
-        # if the ship is not supposed to hunt, just return empty arrays
-        if actor not in self.hunters:
-            return positions, rewards
-
-        pos, hal = self.hunters[actor]
-
-        # add close ship targets with more cargo
-        hal_inds = self.ship_targets_hal > hal
-        pos_inds = state.dist[self.ship_targets_pos, pos] <= HUNTING_RADIUS
-        inds = np.flatnonzero(pos_inds & hal_inds)
-        positions = np.append(positions, self.ship_targets_pos[inds])
-        rewards = np.append(rewards, self.ship_targets_rew[inds])
-
-        # add close yard targets when we have no cargo. since the reward
-        # for the yards is lower, hunters will automatically prefer going
-        # after ships when both kinds of targets are present
-        if hal == 0:
-            # at the end of the game we want most ships to go after yards
-            # but during the bulk of the game we don't want to lose too
-            # many ships due to shipyard hunting
-            endgame = state.total_steps - state.step < YARD_HUNTING_FINAL
-            radius = YARD_HUNTING_RADIUS + endgame * 6
-            inds = state.dist[self.yard_targets_pos, pos] <= radius
-            positions = np.append(positions, self.yard_targets_pos[inds])
-            rewards = np.append(rewards, self.yard_targets_rew[inds])
-
-        return positions, rewards
+        return csr_matrix((data, indices, indptr), shape=(nsites, nsites))
