@@ -38,7 +38,7 @@ class Bounties:
 
         if hunters_pos.size != 0:
             hood = state.dist[hunters_pos, :] <= 2
-            weights += GRAPH_MY_WEIGHT * np.sum(hood, axis=0)
+            weights += GRAPH_OPP_WEIGHT * np.sum(hood, axis=0)
 
         mean_weight = np.mean(weights)
 
@@ -87,7 +87,7 @@ class Bounties:
         # so we remove such ships from the targets
         # (note: & / | / ~ = and / or / not in numpy compatible way)
         target_bool = np.in1d(opp_ship_pos, prev)
-        target_bool = target_bool & (opp_ship_dis >= 1)
+        target_bool = target_bool & (opp_ship_dis >= 3)
         target_inds = np.flatnonzero(target_bool)
 
         # the pool of possible new targets consists of non-targeted ships
