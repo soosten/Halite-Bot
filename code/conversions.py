@@ -38,16 +38,7 @@ class Conversions:
         # number of ships without fifo ships
         num_ships = state.my_ship_pos.size - fifos.fifo_pos.size
 
-        # increase SHIPS_PER_YARD if we have a lot of ships
-        ships_per_yard = BASELINE_SHIPS_PER_YARD
-        ships_per_yard += (num_ships > 25) + (num_ships > 35)
-
-        # number of yards to build
-        num_yards = num_ships // ships_per_yard
-
-        # keep at least 2 yards until the final steps
-        if state.total_steps - state.step > STEPS_FINAL:
-            num_yards = max(num_yards, 2)
+        num_yards = 3 if num_ships > 20 else 2
 
         # build a yard if we have < num_yards yards
         return state.my_yard_pos.size < num_yards
