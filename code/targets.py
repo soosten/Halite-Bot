@@ -40,7 +40,7 @@ class Targets:
         # the optimal assignment assignment assigns ship_inds[i] to
         # site_inds[i]
         problem = np.vstack([self.rewards[ship] for ship in self.ship_list])
-        ship_inds, site_inds = assignment(problem, maximize=True)
+        ship_inds, site_inds = linear_sum_assignment(problem, maximize=True)
 
         # go through the solution of the optimal assignment problem and
         # extract destinations, values, and move ranking functions
@@ -62,6 +62,7 @@ class Targets:
             dist_after = lambda x: dest_dists[self.nnsew.index(x)]
             self.rankings[ship] = self.nnsew.copy()
             self.rankings[ship].sort(key=dist_after)
+            # pos = state.my_ships[self.ship_list[r]][0]
 
         return
 
@@ -134,7 +135,7 @@ class Targets:
         # add a premium if there are a lot of ships that can attack us
         hal = state.my_ships[ship][1]
         less_hal = state.opp_ship_pos[state.opp_ship_hal < hal]
-        rate += RISK_PREMIUM * less_hal.size
+        rate += RISK_PREMIUM * less_hal.size  # / (state.map_size ** 2)
 
         # add a premium of we want to spawn and need money
         if should_spawn(state) and state.my_halite < state.config.spawnCost:
@@ -142,7 +143,7 @@ class Targets:
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:
-            rate += 0.7
+            rate += 0.5
 
         # make sure the rate is no too close to 1 so formulas stay stable
         rate = min(rate, 0.9)
