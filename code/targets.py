@@ -80,12 +80,12 @@ class Targets:
         hood_dists, yard_dists = self.distances[ship]
         ship_dists = hood_dists[self.nnsew.index(None), :]
 
-        # add rewards for mining at all minable sites
-        C = state.my_ships[ship][1]
+        # determine ship rate, yard rate, and hunting rate
+        SR, YR, HR = self.rates(state, ship)
 
-        SR = BASELINE_SHIP_RATE
-        YR = BASELINE_YARD_RATE + self.premium(state, ship)
-        HR = SR + YR
+        # add rewards for mining at all minable sites
+        # see notes for explanation of these quantities
+        C = state.my_ships[ship][1]
 
         minable = state.halite_map > 0
         H = state.halite_map[minable]
@@ -101,9 +101,7 @@ class Targets:
         F2 = F2 / F
 
         M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + YR))
-        M = np.fmax(1, M / np.log(X))
-        # M = np.round(M / np.log(X))
-        # M = np.fmax(1, M)
+        M = np.fmax(1, np.round(M / np.log(X)))
 
         reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + YR) ** M)
 
@@ -130,27 +128,40 @@ class Targets:
         else:
             return reward_map
 
-    def premium(self, state, ship):
+    def rates(self, state, ship):
+        SR = BASELINE_SHIP_RATE
+        YR = BASELINE_YARD_RATE
+
         # add a premium if there are a lot of ships that can attack us
-        pos, hal = state.my_ships[ship]
-        radius = np.amin(state.dist[state.my_yard_pos, pos], axis=0)
-        inds = state.opp_ship_hal < hal
-        inds = inds & (state.dist[state.opp_ship_pos, pos] <= 5)
-        rate = RISK_PREMIUM * np.sum(inds)
+        # pos, hal = state.my_ships[ship]
+        # radius = np.amin(state.dist[state.my_yard_pos, pos], axis=0)
+        # inds = state.opp_ship_hal < hal
+        # inds = inds & (state.dist[state.opp_ship_pos, pos] <= 5)
+        # YR = RISK_PREMIUM * np.sum(inds)
 
-        # add a premium if we need to spawn but don't have halite
-        if should_spawn(state) and state.my_halite < state.config.spawnCost:
-            rate += SPAWN_PREMIUM
+        # # add a small premium if we have any cargo to bring home
+        # YR += CARGO_PREMIUM * (hal > 0)
 
-        # make the rate huge at the end of the game (ships should come home)
-        if state.total_steps - state.step < STEPS_SPIKE:
-            rate += SPIKE_PREMIUM
+        # # add a premium for the first few steps so ships so
+        # # we get some early deposits to build more ships
+        # YR += INITIAL_PREMIUM * (state.step < STEPS_INITIAL)
+
+        # # add a premium if we need to spawn but don't have halite
+        # if should_spawn(state) and state.my_halite < state.config.spawnCost:
+        #     SR += SPAWN_PREMIUM
+
+        # # make the rate huge at the end of the game (ships should come home)
+        # if state.total_steps - state.step < STEPS_SPIKE:
+        #     YR += SPIKE_PREMIUM
+
+        HR = SR + YR
 
         # make sure all rates are < 1 so formulas stay stable
-        max_premium = 0.9 - BASELINE_SHIP_RATE + BASELINE_YARD_RATE
-        rate = min(rate, max_premium)
+        SR = min(SR, 0.9)
+        YR = min(YR, 0.9)
+        HR = min(HR, 0.9)
 
-        return rate
+        return SR, YR, HR
 
     def calc_distances(self, ship, state):
         pos = state.my_ships[ship][0]
