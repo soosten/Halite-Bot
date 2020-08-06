@@ -4,15 +4,16 @@ class Targets:
         self.nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
 
         self.ship_list = []
+        self.num_ships = 0
+
         self.distances = {}
-        self.rewards = {}
         self.destinations = {}
         self.values = {}
         self.rankings = {}
 
         return
 
-    def calculate(self, state, queue):
+    def update(self, state, queue):
         # if there are no ships, there is nothing to do
         if len(queue.ships) == 0:
             return
@@ -33,14 +34,13 @@ class Targets:
         self.ind_to_site = np.append(self.duplicates, state.sites)
 
         # calculate the value per step of going to a specific site
-        self.rewards = {ship: self.calc_rewards(ship, state)
-                        for ship in self.ship_list}
+        cost_matrix = np.vstack([self.calc_rewards(ship, state)
+                                 for ship in self.ship_list])
 
         # find the optimal assignment of ships to destinations
         # the optimal assignment assignment assigns ship_inds[i] to
         # site_inds[i]
-        problem = np.vstack([self.rewards[ship] for ship in self.ship_list])
-        ship_inds, site_inds = linear_sum_assignment(problem, maximize=True)
+        ship_inds, site_inds = assignment(cost_matrix, maximize=True)
 
         # go through the solution of the optimal assignment problem and
         # extract destinations, values, and move ranking functions
@@ -50,103 +50,105 @@ class Targets:
         self.rankings = {}
 
         for ship_ind, site_ind in zip(ship_inds, site_inds):
-            # first write destination and values
+            # convert indices into ships, sites, and values and
+            # add the destination
+            site = self.ind_to_site[site_ind]
             ship = self.ship_list[ship_ind]
-            self.destinations[ship] = self.ind_to_site[site_ind]
-            self.values[ship] = self.rewards[ship][site_ind]
-
-            # then store a copy of nnsew, sorted by how much the move
-            # decreases the distance to our target
-            hood_dists = self.distances[ship][0]
-            dest_dists = hood_dists[:, self.destinations[ship]]
-            dist_after = lambda x: dest_dists[self.nnsew.index(x)]
-            self.rankings[ship] = self.nnsew.copy()
-            self.rankings[ship].sort(key=dist_after)
-            # pos = state.my_ships[self.ship_list[r]][0]
+            value = cost_matrix[ship_ind, site_ind]
+            self.add_destination(ship, site, value)
 
         return
 
-    def calc_rewards(self, ship, state, unappended=False):
-        hal = state.my_ships[ship][1]
+    def add_destination(self, ship, site, value):
+        # store site and value
+        self.destinations[ship] = site
+        self.values[ship] = value
 
-        # get the relevant distances
+        # then store a copy of nnsew, sorted by how much the move
+        # decreases the distance to our target
+        hood_dists = self.distances[ship][0]
+        dest_dists = hood_dists[:, site]
+        dist_after = lambda x: dest_dists[self.nnsew.index(x)]
+        self.rankings[ship] = self.nnsew.copy()
+        self.rankings[ship].sort(key=dist_after)
+
+        return
+
+    def calc_rewards(self, ship, state, return_appended=True):
+        reward_map = np.zeros_like(state.halite_map)
+
         hood_dists, yard_dists = self.distances[ship]
         ship_dists = hood_dists[self.nnsew.index(None), :]
-        D = ship_dists + yard_dists
 
-        # calculate halite gain per step that results from going
-        # to a site, mining it, and returning to the nearest yard,
-        # optimized over the numer of steps to mine the site for
-        # see the notes for a detailed explanation
-        x = (1 + state.config.regenRate) * (1 - state.config.collectRate)
-        a = 1 / (1 - x)
-        r = self.interest(ship, state)
+        # add rewards for mining at all minable sites
+        C = state.my_ships[ship][1]
 
-        # the sites for which the mining optimum makes sense
+        SR = BASELINE_SHIP_RATE
+        YR = BASELINE_YARD_RATE + self.premium(state, ship)
+        HR = SR + YR
+
         minable = state.halite_map > 0
         H = state.halite_map[minable]
+        SD = ship_dists[minable]
+        YD = yard_dists[minable]
 
-        # calculate the optimal turn to mine each site M
-        alpha = 1 + hal / (a * H)
-        xM = alpha / (1 - (np.log(x) / np.log(1 + r)))
-        M = np.ones_like(state.halite_map)
-        M[minable] = np.log(xM) / np.log(x)
-        M[minable] = np.fmax(np.round(M[minable]), 1)
+        X = (1 + state.config.regenRate) * (1 - state.config.collectRate)
+        A = state.config.collectRate / (1 - X)
 
-        # set M = 0 on yards so that there is a preference for the yard
-        # over the site next to the yard in D+M
-        M[state.my_yard_pos] = 0
+        F = ((1 + SR) ** SD) * ((1 + YR) ** YD)
+        F1 = C / F
+        F2 = A * ((1 + state.config.regenRate) ** SD) * H
+        F2 = F2 / F
 
-        # plug the optimizing Ms into the formula for halite
-        # returned per step after traveling to each site
-        reward_map = hal + a * (1 - x ** M) * state.halite_map
+        M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + YR))
+        M = np.fmax(1, M / np.log(X))
+        # M = np.round(M / np.log(X))
+        # M = np.fmax(1, M)
 
-        # insert the reward of going home to a shipyard
-        reward_map[state.my_yard_pos] = hal
+        reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + YR) ** M)
+
+        # add rewards at yard for depositing halite
+        ship_yard_dist = ship_dists[state.my_yard_pos]
+        reward_map[state.my_yard_pos] = C / ((1 + YR) ** ship_yard_dist)
 
         # insert bounties for opponent ships
         ship_hunt_pos, ship_hunt_rew = bounties.get_ship_targets(ship, state)
-        reward_map[ship_hunt_pos] += ship_hunt_rew
+        discount = (1 + HR) ** ship_dists[ship_hunt_pos]
+        reward_map[ship_hunt_pos] = ship_hunt_rew / discount
 
         # insert bounties for opponent yards
         yard_hunt_pos, yard_hunt_rew = bounties.get_yard_targets(ship, state)
-        reward_map[yard_hunt_pos] += yard_hunt_rew
+        discount = (1 + HR) ** ship_dists[yard_hunt_pos]
+        reward_map[yard_hunt_pos] = yard_hunt_rew / discount
 
-        # discount each reward by how much time is lost by retrieving it
-        discounts = (1 + r) ** (D + M)
-        reward_map = reward_map * (1 + r) / discounts
-
-        # copy the ship yard rewards onto the duplicate ship yards
-        yard_rewards = reward_map[state.my_yard_pos]
-        duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
-
-        # append the duplicate rewards
-        appended = np.append(duplicate_rewards, reward_map)
-
-        if unappended:
-            return appended, reward_map
+        if return_appended:
+            # copy the ship yard rewards onto the duplicate ship yards and
+            # append the duplicate rewards
+            yard_rewards = reward_map[state.my_yard_pos]
+            duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
+            return np.append(duplicate_rewards, reward_map)
         else:
-            return appended
+            return reward_map
 
-    def interest(self, ship, state):
-        # always have a minimum interest rate
-        rate = BASELINE_INTEREST
-
+    def premium(self, state, ship):
         # add a premium if there are a lot of ships that can attack us
-        hal = state.my_ships[ship][1]
-        less_hal = state.opp_ship_pos[state.opp_ship_hal < hal]
-        rate += RISK_PREMIUM * less_hal.size  # / (state.map_size ** 2)
+        pos, hal = state.my_ships[ship]
+        radius = np.amin(state.dist[state.my_yard_pos, pos], axis=0)
+        inds = state.opp_ship_hal < hal
+        inds = inds & (state.dist[state.opp_ship_pos, pos] <= 5)
+        rate = RISK_PREMIUM * np.sum(inds)
 
-        # add a premium of we want to spawn and need money
+        # add a premium if we need to spawn but don't have halite
         if should_spawn(state) and state.my_halite < state.config.spawnCost:
             rate += SPAWN_PREMIUM
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:
-            rate += 0.5
+            rate += SPIKE_PREMIUM
 
-        # make sure the rate is no too close to 1 so formulas stay stable
-        rate = min(rate, 0.9)
+        # make sure all rates are < 1 so formulas stay stable
+        max_premium = 0.9 - BASELINE_SHIP_RATE + BASELINE_YARD_RATE
+        rate = min(rate, max_premium)
 
         return rate
 

@@ -2,6 +2,9 @@ def agent(obs, config):
     # internal game state, to be updated as we decide on actions
     state = State(obs, config)
 
+    # update the global statistics we track across all turns
+    stats.update(state)
+
     # list of ships/yards for which we need to decide on an action
     queue = Queue(state)
 
@@ -24,7 +27,7 @@ def agent(obs, config):
     bounties.update(state)
 
     # set preferences for where each ship would like to go
-    targets.calculate(state, queue)
+    targets.update(state, queue)
 
     # now decide on "normal" actions for the remaining actors
     while queue.pending():
@@ -45,11 +48,8 @@ def agent(obs, config):
         if action is not None:
             actions[actor] = action
 
-    # update the global statistics we track across all turns
-    stats.update(state)
-
-    if state.step == 398:
-        print(f"{bounties.conversions} / {bounties.total_bounties} = {round(bounties.conversions / (0.01 + bounties.total_bounties), 2)}")
-        print(f"{bounties.total_loot}")
+    # print some statistics about the game before the last step
+    if 2 + state.step == state.total_steps:
+        stats.summary()
 
     return actions

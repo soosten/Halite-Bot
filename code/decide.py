@@ -97,39 +97,18 @@ def filter_moves(ship, state, destination):
     # enemy shipyards
     yards = (destination not in bounties.yard_targets_pos)
 
-    # if we have a lot of friendly ships nearby its likely that there is a
-    # big reward close, so we are more aggressive and set strict = False by
-    # default. this should also help clear up traffic jams if a ship is idling
-    # next to a big reward. if our goal is to destroy a yard, we shouldn't
-    # run away from other ships and also set strict = False.
-    friends = np.sum(state.dist[pos, state.my_ship_pos] <= 2)
-    strict = (friends < 4) and yards
-
     # usually strong_no_opp_col has moves that don't result in collision with
     # an enemy ship or yard (unless we set a different default above)
-    strong_no_opp_col = [move for move in nnsew if not
-                         state.opp_collision(ship, move, strict, yards)]
-
-    # moves which don't result in collision with an enemy ship
-    # that has strictly less cargo
-    weak_no_opp_col = [move for move in nnsew if not
-                       state.opp_collision(ship, move, False, yards)]
+    no_opp_col = [move for move in nnsew if not
+                  state.opp_collision(ship, move, True, yards)]
 
     # ideally consider moves that don't collide at all
-    candidates = list(set(no_self_col) & set(strong_no_opp_col))
+    candidates = list(set(no_self_col) & set(no_opp_col))
     opp_col_flag = False
-
-    # if this is impossible, try weakened no_opp_col
-    if len(candidates) == 0:
-        candidates = list(set(no_self_col) & set(weak_no_opp_col))
 
     # if this is impossible, don't collide with opponent ships
     if len(candidates) == 0:
-        candidates = strong_no_opp_col
-
-    # if this is impossible, don't collide with opponent ships (weak version)
-    if len(candidates) == 0:
-        candidates = weak_no_opp_col
+        candidates = no_opp_col
 
     # if this is impossible, don't collide with own ships
     if len(candidates) == 0:

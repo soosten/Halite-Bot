@@ -82,13 +82,8 @@ def spawn_maximum(state, queue):
         legal = state.legal_actions(yard)
 
         # if spawning is legal, do it
-        action = "SPAWN" if "SPAWN" in legal else None
-
-        # update game state with consequence of action
-        state.update(yard, action)
-
-        # write action into dictionary of actions to return
-        if action is not None:
-            actions[yard] = action
+        if "SPAWN" in legal:
+            state.update(yard, "SPAWN")
+            actions[yard] = "SPAWN"
 
     return actions
