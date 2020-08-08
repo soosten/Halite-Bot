@@ -3,6 +3,7 @@ class Stats:
         self.last_state = None
         self.state = None
         self.yard_attackers = []
+        self.idle_ships = {}
 
         self.total_bounties = 0
         self.converted_bounties = 0
@@ -25,6 +26,10 @@ class Stats:
         # use deepcopy that we keep the state at the beginning of our turn
         # and don't update as we go through deciding actions for our actors
         self.state = deepcopy(argstate)
+
+        # remove any non-existent ships from idling count
+        self.idle_ships = {key: val for key, val in self.idle_ships.items()
+                           if key in self.state.my_ships}
 
         # determine if anyone destroyed a shipyard last turn and
         # add the suspect to list of yard attackers
@@ -112,15 +117,14 @@ class Stats:
               + self.state.config.spawnCost * self.ships_built \
               + self.state.config.convertCost * self.yards_built
 
-        print("")
-        print("Bounties converted: " + frac)
-        print(f"Total loot: {self.loot}")
-        print(f"Yards destroyed: {self.yards_destroyed}")
-        print(f"Ships built: {self.ships_built}")
-        print(f"Yards built: {self.yards_built}")
-        print(f"Ships lost: {self.ships_lost}")
-        print(f"Yards lost: {self.yards_lost}")
-        print(f"Total mined: {mined}")
-        print("")
+        print(f"SUMMARY FOR PLAYER {self.state.my_id}:")
+        print("  Bounties converted: " + frac)
+        print(f"  Total loot: {self.loot}")
+        print(f"  Yards destroyed: {self.yards_destroyed}")
+        print(f"  Ships built: {self.ships_built}")
+        print(f"  Yards built: {self.yards_built}")
+        print(f"  Ships lost: {self.ships_lost - self.yards_destroyed}")
+        print(f"  Yards lost: {self.yards_lost}")
+        print(f"  Total mined: {mined}\n")
 
         return

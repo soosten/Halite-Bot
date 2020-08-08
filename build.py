@@ -24,7 +24,7 @@ def main():
     # run the simulation - setting a random seed is optional
     run(PATH, agents, seed=0)
 
-    print("Done.")
+    print("\nDone.")
     return
 
 
@@ -85,17 +85,17 @@ def write(PATH):
 def run(PATH, agents, seed=None):
     # get a halite simulator from kaggle environments
     if seed is not None:
-        print(f"Running simulation with seed = {seed}...")
+        print(f"\nRunning simulation with seed = {seed}...\n\n")
         env = make("halite", debug=True, configuration={"randomSeed": seed})
     else:
-        print("Running simulation...")
+        print("\nRunning simulation...\n\n")
         env = make("halite", debug=True)
 
     # run the simulation
     env.run(agents)
 
     # write the output video to simulation.html
-    print("Rendering episode...")
+    print("\nRendering episode...")
     out = env.render(mode="html", width=800, height=600)
     with open(PATH + "simulation.html", "w") as file:
         file.write(out)

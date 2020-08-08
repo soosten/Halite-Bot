@@ -32,10 +32,8 @@ class Bounties:
         hunters_pos = state.my_ship_pos[likely_hunters]
 
         if hunters_pos.size != 0:
-            hood = state.dist[hunters_pos, :] <= 2
+            hood = state.dist[hunters_pos, :] <= 3
             weights += GRAPH_OPP_WEIGHT * np.sum(hood, axis=0)
-
-        mean_weight = np.mean(weights)
 
         graph = targets.make_graph_csr(state, weights)
 
@@ -60,7 +58,7 @@ class Bounties:
                 graph_dist = dijkstra(graph, indices=yards, min_only=True)
                 graph_dist = graph_dist[ship_pos]
                 ship_dis = np.amin(state.dist[np.ix_(yards, ship_pos)], axis=0)
-                ship_vul = (1 + graph_dist) / (1 + mean_weight * ship_dis)
+                ship_vul = (1 + graph_dist) / (1 + ship_dis)
 
             opp_ship_pos = np.append(opp_ship_pos, ship_pos)
             opp_ship_hal = np.append(opp_ship_hal, ship_hal)
@@ -89,12 +87,16 @@ class Bounties:
         # that are trapped (vulnerability > 1), have at least one hunter
         # nearby, and aren't too close to a friendly yard
         candidates = ~target_bool & (opp_ship_vul > 1)
-        candidates = candidates & (opp_ship_dis >= 3) & (nearby >= 1)
+        candidates = candidates & (opp_ship_dis >= 3) & (nearby >= 3)
+
+        # candidates = ~target_bool & (nearby >= 3)
+        # candidates = candidates & (opp_ship_dis >= 3)
 
         # we compute scores for each of the candidate ships indicating
         # the risk/reward of attacking them
         # make the scores of ships that are not candidates negative
         opp_ship_score = opp_ship_hal * opp_ship_vul
+        # opp_ship_score = opp_ship_hal * nearby
         opp_ship_score[~candidates] = -1
 
         # determine how many targets we would like to have and how many

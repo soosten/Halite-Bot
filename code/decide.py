@@ -7,6 +7,11 @@ def decide(state, actor):
         candidates = filter_moves(actor, state, destination)
         decision = min(candidates, key=lambda move: ranking.index(move))
 
+        # if we decide None, add 1 to the counter of successive idling
+        # moves for the ship, otherwise set counter to zero
+        idle_count = stats.idle_ships.get(actor, 0)
+        stats.idle_ships[actor] = (idle_count + 1) * (decision is None)
+
     # if the actor is a yard, we check whether we should spawn or not
     elif actor in state.my_yards:
         decision = "SPAWN" if should_spawn(state, actor) else None
@@ -97,10 +102,13 @@ def filter_moves(ship, state, destination):
     # enemy shipyards
     yards = (destination not in bounties.yard_targets_pos)
 
+    idle_count = stats.idle_ships.get(ship, 0)
+    strict = idle_count <= 5
+
     # usually strong_no_opp_col has moves that don't result in collision with
     # an enemy ship or yard (unless we set a different default above)
     no_opp_col = [move for move in nnsew if not
-                  state.opp_collision(ship, move, True, yards)]
+                  state.opp_collision(ship, move, strict, yards)]
 
     # ideally consider moves that don't collide at all
     candidates = list(set(no_self_col) & set(no_opp_col))
