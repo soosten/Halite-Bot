@@ -103,4 +103,5 @@ def run(PATH, agents, seed=None):
     return
 
 
-main()
+if __name__ == "__main__":
+    main()

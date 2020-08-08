@@ -183,34 +183,17 @@ class Targets:
         # neighbors of ship - then we can easily take a step "towards"
         # any given site later
         hood = np.array([state.newpos(pos, move) for move in self.nnsew])
-        hood_dists = dijkstra(graph, indices=hood, directed=False)
+        hood_dists = dijkstra(graph, indices=hood)
 
         # calculate the distances from all sites to nearest yard
-        yard_dists = dijkstra(graph, indices=state.my_yard_pos,
-                              min_only=True, directed=False)
+        yard_dists = dijkstra(graph, indices=state.my_yard_pos, min_only=True)
 
         # store hood distances and yard distances for later
         return hood_dists, yard_dists
 
     def make_weights(self, actor, state):
-        weights = np.ones_like(state.sites)
-
-        # ships contribute weights in the space they control (which is the
-        # ball of radius 1 or 2 around their position). sites controlled by
-        # multiple ships should get higher weights
-
-        # heuristic: going "through a site" usually takes two steps. if you
-        # to go "around the site" while staying 1 step away it takes 4 steps
-        # so the weight should be > 4/2 = 2
-        mw = GRAPH_MY_WEIGHT
-
-        # going "through 3 sites" usually takes 4 steps. if you want to go
-        # want "around the 3 sites" while staying 2 steps from the middle, it
-        # takes 8 steps so the weight should be > 8/4 = 2. but we want to be
-        # very scared of opponent ships so we set this to 4
-        ow = GRAPH_OPP_WEIGHT
-
         pos, hal = state.my_ships[actor]
+        weights = np.ones_like(state.sites)
 
         # ignore immediate neighbors in the friendly weights - this is handled
         # automatically and the weights can cause traffic jams at close range
@@ -218,16 +201,16 @@ class Targets:
         friendly = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos)
         friendly = friendly[state.dist[pos, friendly] > 1]
         if friendly.size != 0:
-            weights += mw * np.sum(state.dist[friendly, :] <= 1, axis=0)
+            weights += MY_WEIGHT * np.sum(state.dist[friendly, :] <= 1, axis=0)
 
         # only consider opponent ships with less halite
-        less_hal = state.opp_ship_pos[state.opp_ship_hal <= hal]
-        if less_hal.size != 0:
-            weights += ow * np.sum(state.dist[less_hal, :] <= 2, axis=0)
+        threat = state.opp_ship_pos[state.opp_ship_hal <= hal]
+        if threat.size != 0:
+            weights += OPP_WEIGHT * np.sum(state.dist[threat, :] <= 2, axis=0)
 
         # also need to go around enemy shipyards
         if state.opp_yard_pos.size != 0:
-            weights[state.opp_yard_pos] += ow
+            weights[state.opp_yard_pos] += OPP_WEIGHT
 
         # remove any weights on the yards so these don't get blocked
         weights[state.my_yard_pos] = 0

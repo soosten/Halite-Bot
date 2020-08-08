@@ -58,7 +58,7 @@ def should_spawn(state, actor=None):
     # generally, we want to keep at least as many ships as the opponents
     # so that we don't get completely overrun even when we are trailing
     # but we take this less seriously at the end of the game
-    offset = 5 * (state.step / state.total_steps)
+    offset = SPAWN_OFFSET * (state.step / state.total_steps)
     min_ships = max_opp_ships - offset
 
     # regardless of what opponents do, keep a minimum amount of ships
@@ -91,22 +91,24 @@ def should_spawn(state, actor=None):
 def filter_moves(ship, state, destination):
     pos, hal = state.my_ships[ship]
 
+    # determine what yards parameter to pass to opp_collision. if our final
+    # destination is to destroy a shipyard, we don't check for collision with
+    # enemy shipyards
+    yards = (destination not in bounties.yard_targets_pos)
+
+    # relax the strict opponent collision checking if we
+    # have been idling at some site
+    idle_count = stats.idle_ships.get(ship, 0)
+    strict = idle_count <= 5
+
+    # legal moves
     nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
 
     # no self collisions
     no_self_col = [move for move in nnsew if not
                    state.self_collision(ship, move)]
 
-    # determine what yards parameter to pass to opp_collision. if our final
-    # destination is to destroy a shipyard, we don't check for collision with
-    # enemy shipyards
-    yards = (destination not in bounties.yard_targets_pos)
-
-    idle_count = stats.idle_ships.get(ship, 0)
-    strict = idle_count <= 5
-
-    # usually strong_no_opp_col has moves that don't result in collision with
-    # an enemy ship or yard (unless we set a different default above)
+    # no undesired opponent collisions
     no_opp_col = [move for move in nnsew if not
                   state.opp_collision(ship, move, strict, yards)]
 

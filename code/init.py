@@ -1,12 +1,24 @@
 # parameters for graph weighting
-GRAPH_MY_WEIGHT = 1
-GRAPH_OPP_WEIGHT = 4
+# ships contribute weights in the space they control (which is the
+# ball of radius 1 or 2 around their position). sites controlled by
+# multiple ships should get higher weights
+# heuristic: going "through a site" usually takes two steps. if you
+# to go "around the site" while staying 1 step away it takes 4 steps
+# so the weight should be > 4/2 = 2
+MY_WEIGHT = 1
+
+# going "through 3 sites" usually takes 4 steps. if you want to go
+# want "around the 3 sites" while staying 2 steps from the middle, it
+# takes 8 steps so the weight should be > 8/4 = 2. but we want to be
+# very scared of opponent ships so we set this to 4
+OPP_WEIGHT = 4
+HUNT_WEIGHT = 4
 
 # parameters for shipyard conversion
 YARD_DIST = 7
 YARD_RADIUS = 4
 MIN_CELLS = 20
-YARD_SCHEDULE = np.array([0, 0, 30])  # second 0?
+YARD_SCHEDULE = np.array([0, 0, 30])
 FIFO_MODE = True
 
 # how many steps are the "initial" and "final" phases of the game
@@ -16,9 +28,7 @@ STEPS_FINAL = 50
 # parameters for spawning decisions
 MAX_SHIPS = 70
 MIN_SHIPS = 15
-
-SPAWN_BUFFER = 0 # SET
-SPAWN_OFFSET = 0
+SPAWN_OFFSET = 5
 
 # parameters for setting bounties and hunters
 SHIPS_PER_BOUNTY = 5

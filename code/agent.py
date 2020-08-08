@@ -1,4 +1,7 @@
 def agent(obs, config):
+    # keep track of time spent
+    tick = time()
+
     # internal game state, to be updated as we decide on actions
     state = State(obs, config)
 
@@ -51,5 +54,9 @@ def agent(obs, config):
     # print some statistics about the game before the last step
     if 2 + state.step == state.total_steps:
         stats.summary()
+
+    # keep track of time spent
+    tock = time()
+    stats.total_time += tock - tick
 
     return actions

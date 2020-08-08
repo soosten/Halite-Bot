@@ -15,6 +15,8 @@ class Stats:
 
         self.yards_built = 0
         self.ships_built = 0
+
+        self.total_time = 0
         return
 
     def update(self, argstate):
@@ -117,6 +119,8 @@ class Stats:
               + self.state.config.spawnCost * self.ships_built \
               + self.state.config.convertCost * self.yards_built
 
+        avg_time = round(self.total_time / (self.state.total_steps - 1), 2)
+
         print(f"SUMMARY FOR PLAYER {self.state.my_id}:")
         print("  Bounties converted: " + frac)
         print(f"  Total loot: {self.loot}")
@@ -125,6 +129,7 @@ class Stats:
         print(f"  Yards built: {self.yards_built}")
         print(f"  Ships lost: {self.ships_lost - self.yards_destroyed}")
         print(f"  Yards lost: {self.yards_lost}")
-        print(f"  Total mined: {mined}\n")
+        print(f"  Total halite: {mined}")
+        print(f"  Average time per step: {avg_time} seconds\n")
 
         return
