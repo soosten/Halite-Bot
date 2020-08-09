@@ -165,7 +165,7 @@ class State:
                 npos = self.newpos(pos, action)
                 self.my_ships[actor] = [npos, nhal]
 
-                # add new position to list of ships that cannot this turn
+                # add new position to list of ships that cannot move this turn
                 self.moved_this_turn[npos] = True
 
         # update internal variables that derive from my_ships, my_yards

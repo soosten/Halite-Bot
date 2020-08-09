@@ -29,54 +29,46 @@ def main():
 
 
 def write(PATH):
-    # list of files in PATH/code/ that are not system files
-    code_dir = [name for name in listdir(PATH + "code/") if name[0] != "."]
+    # list of files in PATH/src/ that are not system files
+    src_dir = [name for name in listdir(PATH + "src/") if name[0] != "."]
 
     # check if agent.py, init.py, and imports.py exist and remove them
     try:
-        code_dir.remove("agent.py")
-        code_dir.remove("init.py")
-        code_dir.remove("imports.py")
+        src_dir.remove("agent.py")
+        src_dir.remove("init.py")
+        src_dir.remove("imports.py")
 
     except ValueError:
-        print("Error: /code/ directory must contain agent.py, "
+        print("Error: /src/ directory must contain agent.py, "
               + "imports.py, and init.py")
         raise SystemExit
 
     # write the files in lexicographical order so its easier to
     # scroll to them in the combined file
-    code_dir.sort()
+    src_dir.sort()
 
-    # write imports.py, then all files in PATH/code/, then init.py,
+    # write imports.py, then all files in PATH/src/, then init.py,
     # and finally agent.py into submission.py
     print("Writing files...")
     with open(PATH + "submission.py", "w") as submission:
         print("  imports.py")
-        submission.write("# ------------ CODE IMPORTED FROM "
-                         + "imports.py ------------ #\n")
-        with open(PATH + "code/imports.py", "r") as file:
+        with open(PATH + "src/imports.py", "r") as file:
             copyfileobj(file, submission)
         submission.write("\n\n")
 
-        for name in code_dir:
+        for name in src_dir:
             print("  " + name)
-            submission.write("# ------------ CODE IMPORTED FROM "
-                             + name + " ------------ #\n")
-            with open(PATH + "code/" + name, "r") as file:
+            with open(PATH + "src/" + name, "r") as file:
                 copyfileobj(file, submission)
             submission.write("\n\n")
 
         print("  init.py")
-        submission.write("# ------------ CODE IMPORTED FROM "
-                         + "init.py ------------ #\n")
-        with open(PATH + "code/init.py", "r") as file:
+        with open(PATH + "src/init.py", "r") as file:
             copyfileobj(file, submission)
             submission.write("\n\n")
 
         print("  agent.py")
-        submission.write("# ------------ CODE IMPORTED FROM "
-                         + "agent.py ------------ #\n")
-        with open(PATH + "code/agent.py", "r") as file:
+        with open(PATH + "src/agent.py", "r") as file:
             copyfileobj(file, submission)
 
     return

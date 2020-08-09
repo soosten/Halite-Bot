@@ -34,6 +34,12 @@ class Queue:
         stuck = (ship for ship, val in self.ships.items() if np.sum(~val) <= 1)
         nextup = next(stuck, None)
 
+        # then try to schedule ships with no cargo
+        if nextup is None:
+            cargo = lambda ship: state.my_ships[ship][1]
+            free = (ship for ship in self.ships if cargo(ship) == 0)
+            nextup = next(free, None)
+
         # if there are no such ships, choose the one with the highest value
         if nextup is None:
             value = lambda ship: targets.values.get(ship, 0)

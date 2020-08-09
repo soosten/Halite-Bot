@@ -109,7 +109,7 @@ class Targets:
         # see notes for explanation of these quantities
         C = state.my_ships[ship][1]
 
-        minable = state.halite_map > 0
+        minable = state.halite_map > MIN_MINING_HALITE
         H = state.halite_map[minable]
         SD = ship_dists[minable]
         YD = yard_dists[minable]
@@ -122,7 +122,9 @@ class Targets:
         F2 = A * ((1 + state.config.regenRate) ** SD) * H
         F2 = F2 / F
 
-        M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + YR))
+        with np.errstate(divide='ignore'):
+            M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + YR))
+
         M = np.fmax(1, np.round(M / np.log(X)))
 
         reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + YR) ** M)

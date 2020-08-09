@@ -35,7 +35,7 @@ class Bounties:
             hood = state.dist[hunters_pos, :] <= 3
             weights += HUNT_WEIGHT * np.sum(hood, axis=0)
 
-        graph = targets.make_graph_csr(state, weights)
+        graph = targets.make_graph_csr(state, weights)  # HACK TO TAKE THIS FUNC FROM TARGETS
 
         # calculate position, halite, and vulnerability for all opponent ships
         # vulnerability is the ratio of distance to the nearest friendly yard
@@ -96,7 +96,6 @@ class Bounties:
         # the risk/reward of attacking them
         # make the scores of ships that are not candidates negative
         opp_ship_score = opp_ship_hal * opp_ship_vul
-        # opp_ship_score = opp_ship_hal * nearby
         opp_ship_score[~candidates] = -1
 
         # determine how many targets we would like to have and how many

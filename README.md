@@ -17,7 +17,7 @@ The bot depends only on standard libraries and the scipy stack. However, the scr
 
 
 ### Build
-The script `build.py` has code to build a valid submission and run it. The function `write()` processes the code in `/code/` into a file `submission.py` satisfying the criteria above. The function `run()` can be used to run an episode locally, in which the agent can play against other user-supplied agents or the built-in random/idle agents. The output consists of `simulation.html`, which contains a video rendering of the episode.
+The script `build.py` has code to build a valid submission and run it. The function `write()` processes the code in `/src/` into a file `submission.py` satisfying the criteria above. The function `run()` can be used to run an episode locally, in which the agent can play against other user-supplied agents or the built-in random/idle agents. The output consists of `simulation.html`, which contains a video rendering of the episode.
 
 
 ### Main components of the strategy

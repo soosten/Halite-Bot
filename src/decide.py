@@ -20,72 +20,74 @@ def decide(state, actor):
 
 
 def should_spawn(state, actor=None):
-    if actor is not None:
-        # check if spawning is a legal move that doesn't result in
-        # self-collision and return False if not
-        no_self_col = [action for action in state.legal_actions(actor)
-                       if not state.self_collision(actor, action)]
-        if "SPAWN" not in no_self_col:
-            return False
-
-        # check how many ships are right next to the yard. if there are 4 or
-        # more (counting fifo ships) we should not spawn until traffic eases
-        pos = state.my_yards[actor]
-        if np.count_nonzero(state.dist[state.my_ship_pos, pos] <= 1) >= 4:
-            return False
-
-        # then check if the yard is a fifo yard without a ship
-        # and spawn if this is the case
-        if pos in fifos.fifo_pos and pos not in state.my_ship_pos:
-            if state.total_steps - state.step > STEPS_FINAL:
-                return True
-
     # my number of ships (not counting fifo) and score = halite + cargo
     my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
     my_score = state.my_halite + np.sum(state.my_ship_hal)
 
-    # determine a number of ships to keep based on opponent's scores and ships
+    # check for some special scenarios in which we should not spawn
+    if actor is not None:
+        # if spawning is not legal
+        if "SPAWN" not in state.legal_actions(actor):
+            return False
+
+        # if spawing results in collision
+        if state.self_collision(actor, "SPAWN"):
+            return False
+
+        # if there is too much traffic at the yard
+        pos = state.my_yards[actor]
+        if np.count_nonzero(state.dist[state.my_ship_pos, pos] <= 1) >= 4:
+            return False
+
+    # if we already have a lot of ships
+    if my_ships >= MAX_SHIPS:
+        return False
+
+    # if its the end of the game and we have a few ships still
+    endgame = state.total_steps - state.step < STEPS_FINAL
+    if endgame and my_ships >= 5:
+        return False
+
+    # otherwise the rule is that we spawn in any of the following cases:
+    # we have less ships than the opponents, we are leading by a lot,
+    # there are still many steps left in the game, there is a lot of
+    # halite on the map
+    # determine the opponent scores anf number of ships
     num_ships = lambda x: x[2].size
     alive = lambda x: (x[1].size + x[2].size) > 0
     score = lambda x: alive(x) * (x[0] + np.sum(x[3]))
     max_opp_ships = max([num_ships(opp) for opp in state.opp_data.values()])
     max_opp_score = max([score(opp) for opp in state.opp_data.values()])
 
-    # don't spawn if we have the maximum number of ships
-    if my_ships >= MAX_SHIPS:
-        return False
+    # spawn if we there is a lot of time left
+    spawn = state.step < SPAWNING_STEP
 
-    # generally, we want to keep at least as many ships as the opponents
-    # so that we don't get completely overrun even when we are trailing
+    # spawn if there is a lot of halite on the map
+    ratio = np.sum(state.halite_map) / state.config.startingHalite
+    spawn = spawn or ratio > SPAWNING_RATIO
+
+    # spawn if we have fewer ships than the opponents
     # but we take this less seriously at the end of the game
-    offset = SPAWN_OFFSET * (state.step / state.total_steps)
-    min_ships = max_opp_ships - offset
+    offset = SPAWNING_OFFSET * (state.step / state.total_steps)
+    spawn = spawn or my_ships < max_opp_ships - offset
 
-    # regardless of what opponents do, keep a minimum amount of ships
-    min_ships = max(min_ships, MIN_SHIPS)
+    # spawn if we are below the minimum number of ships
+    spawn = spawn or my_ships < MIN_SHIPS
 
-    # there are three special cases:
-    # we should always spawn at the beginning of the game
-    if state.step < STEPS_INITIAL:
-        min_ships = MAX_SHIPS
-
-    # if we're leading by a lot, we should keep spawning and increase our
-    # control of the board. we keep a buffer that ensures we can spawn/convert
-    # if something unexpected happens. the formula below is buffer = 500
-    # (= spawnCost) halfway through the game and buffer = 1500
+    # spawn if we have more halite than opponents. the formula below is
+    #  buffer = 500 (= spawnCost) halfway through the game and buffer = 1500
     # (= spawnCost + 2 * convertCost) when there are < 50 steps remaining
     op_costs = state.config.spawnCost + state.config.convertCost
     buffer = 2 * op_costs * ((state.step / state.total_steps) ** 2)
-    if my_score > max_opp_score + buffer:
-        min_ships = MAX_SHIPS
+    spawn = spawn or my_score > max_opp_score + buffer
 
-    # we shouldn't spawn too much at the end of the game. these ships won't
-    # pay for their cost before the game ends
-    if state.total_steps - state.step < STEPS_FINAL:
-        min_ships = 5
+    # finally, spawn if the yard is a fifo yard without a ship
+    if actor is not None:
+        pos = state.my_yards[actor]
+        fifo_spawn = pos in fifos.fifo_pos and pos not in state.my_ship_pos
+        spawn = spawn or fifo_spawn
 
-    # spawn if we have less ships than we need
-    return my_ships < min_ships
+    return spawn
 
 
 def filter_moves(ship, state, destination):
