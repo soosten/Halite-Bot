@@ -7,7 +7,7 @@ class Fifos:
     def update(self, state):
         # if we never add any fifo yards, strip() and resolve() have no
         # effect - so if USE_FIFO_SYSTEM is False, update() does nothing
-        if not USE_FIFO_SYSTEM:
+        if not FIFO_MODE:
             return
 
         # remove any fifo yard positions that may have been destroyed
@@ -29,8 +29,9 @@ class Fifos:
     def strip(self, state, queue):
         # if x is the position of a fifo yard with a ship on it,
         # self.stripped[x] is the [key, safe_sites] of the ship
-        self.stripped = {val[0]: [key, queue.ships[key]] for key, val in
-                         state.my_ships.items() if val[0] in self.fifo_pos}
+        pos = lambda ship: state.my_ships[ship][0]
+        self.stripped = {pos(ship): [ship, val] for ship, val in
+                         queue.ships.items() if pos(ship) in self.fifo_pos}
 
         # strip these ships from the scheduling queue
         for ship, moves in self.stripped.values():
@@ -55,28 +56,15 @@ class Fifos:
             return
 
         # otherwise insert the new ship into the queue
-        queue.ships.update({ship: moves})
-
-        # and compute a heuristic target data for ship
-        # see the comments in targets.calculate()
-        targets.ship_list.append(ship)
-        targets.distances[ship] = targets.calc_distances(ship, state)
-        dupes, no_dupes = targets.calc_rewards(ship, state, unappended=True)
-        targets.rewards[ship] = dupes
+        queue.ships[ship] = moves
 
         # we choose a destination that has not yet been selected by the
         # optimal assignment algorithm for the non-fifo ships
-        taken = np.array(list(targets.destinations.values()))
-        no_dupes[taken] = 0
-        targets.destinations[ship] = no_dupes.argmax()
-        targets.values[ship] = no_dupes.max()
-
-        # and produce a ranking of moves depending on how much
-        # they decrease the distance to our new target
-        hood_dists = targets.distances[ship][0]
-        dest_dists = hood_dists[:, targets.destinations[ship]]
-        dist_after = lambda x: dest_dists[targets.nnsew.index(x)]
-        targets.rankings[ship] = targets.nnsew.copy()
-        targets.rankings[ship].sort(key=dist_after)
+        targets.ship_list.append(ship)
+        targets.distances[ship] = targets.calc_distances(ship, state)
+        rewards = targets.calc_rewards(ship, state, return_appended=False)
+        taken = np.array(list(targets.destinations.values())).astype(int)
+        rewards[taken] = 0
+        targets.add_destination(ship, rewards.argmax(), rewards.max())
 
         return

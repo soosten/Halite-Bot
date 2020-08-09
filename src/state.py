@@ -16,14 +16,14 @@ class State:
         # set joint and individual data for oppenents
         self.set_opp_data(obs)
 
-        # list of positions with ships that have already moved this turn
-        self.moved_this_turn = np.array([])
-
         # several functions want a vector of all sites so we only generate
         # this once and keep it
         size = self.map_size
         nsites = size ** 2
         self.sites = np.arange(nsites)
+
+        # list of positions with ships that have already moved this turn
+        self.moved_this_turn = np.zeros_like(self.sites).astype(bool)
 
         # lookup tables for the effect of moves
         # north[x] is the position north of x, etc
@@ -131,7 +131,7 @@ class State:
             self.my_ships[newid] = [pos, 0]
 
             # the result is a ship here that cannot move this turn
-            self.moved_this_turn = np.append(self.moved_this_turn, pos)
+            self.moved_this_turn[pos] = True
 
             # subtract spawn cost from available halite
             self.my_halite -= int(self.config.spawnCost)
@@ -165,8 +165,8 @@ class State:
                 npos = self.newpos(pos, action)
                 self.my_ships[actor] = [npos, nhal]
 
-                # add position to list of ships that cannot this turn
-                self.moved_this_turn = np.append(self.moved_this_turn, npos)
+                # add new position to list of ships that cannot move this turn
+                self.moved_this_turn[npos] = True
 
         # update internal variables that derive from my_ships, my_yards
         self.set_derived()
@@ -201,7 +201,7 @@ class State:
             # shipyards only give collisions if we spawn a ship after moving
             # a ship there previously
             pos = self.my_yards[actor]
-            collision = (action == "SPAWN") and (pos in self.moved_this_turn)
+            collision = (action == "SPAWN") and self.moved_this_turn[pos]
 
         if actor in self.my_ships:
             pos, hal = self.my_ships[actor]
@@ -213,41 +213,37 @@ class State:
             # it runs into a ship that can no longer move
             else:
                 npos = self.newpos(pos, action)
-                collision = npos in self.moved_this_turn
+                collision = self.moved_this_turn[npos]
 
         return collision
 
     def opp_collision(self, ship, action, strict=True, yards=True):
-        pos, hal = self.my_ships[ship]
+        pos = self.my_ships[ship][0]
         npos = self.newpos(pos, action)
-        moves = self.safe_sites(ship, strict, yards)
-        return (npos not in moves)
+        unsafe = self.unsafe_sites(ship, strict, yards)
+        return unsafe[npos]
 
-    def safe_sites(self, ship, strict=True, yards=True):
+    def unsafe_sites(self, ship, strict=True, yards=True):
         pos, hal = self.my_ships[ship]
 
-        # possible sites the ship can go to
-        moves = np.flatnonzero(self.dist[pos, :] <= 1)
+        # can only go to sites with distance <= 1
+        unsafe = self.dist[pos, :] > 1
 
         # find those ships that have less halite than we do
-        if strict:
-            less_hal = self.opp_ship_pos[self.opp_ship_hal <= hal]
-        else:
-            less_hal = self.opp_ship_pos[self.opp_ship_hal < hal]
+        # add 1 to hal if we want to have a strict halite comparison
+        # since x < hal becomes x <= hal for integer values...
+        less_hal = self.opp_ship_pos[self.opp_ship_hal < (hal + strict)]
 
         # hood is set of sites where ships with less cargo can be in one step
         # regard our own shipyards as safe havens - this is not necessarily
         # the case but many opponents will not want to run into the yard
         # as this will cost them their ship too
         if less_hal.size != 0:
-            hood = np.flatnonzero(np.amin(self.dist[less_hal, :], axis=0) <= 1)
-            hood = np.setdiff1d(hood, self.my_yard_pos)
-        else:
-            hood = np.array([]).astype(int)
+            hood = np.amin(self.dist[less_hal, :], axis=0) <= 1
+            hood = hood & (~np.in1d(self.sites, self.my_yard_pos))
+            unsafe = unsafe | hood
 
-        # remove hood and opponent yards from the set of sites we can go to
-        moves = np.setdiff1d(moves, hood)
         if yards:
-            moves = np.setdiff1d(moves, self.opp_yard_pos)
+            unsafe = unsafe | np.in1d(self.sites, self.opp_yard_pos)
 
-        return moves
+        return unsafe

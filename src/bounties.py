@@ -8,11 +8,6 @@ class Bounties:
         self.yard_targets_pos = np.array([]).astype(int)
         self.yard_targets_rew = np.array([]).astype(int)
 
-        # stats - remove
-        self.total_bounties = 0
-        self.conversions = 0
-        self.total_loot = 0
-
         return
 
     def update(self, state):
@@ -37,12 +32,10 @@ class Bounties:
         hunters_pos = state.my_ship_pos[likely_hunters]
 
         if hunters_pos.size != 0:
-            hood = state.dist[hunters_pos, :] <= 2
-            weights += GRAPH_HUNTING_WEIGHT * np.sum(hood, axis=0)
+            hood = state.dist[hunters_pos, :] <= 3
+            weights += HUNT_WEIGHT * np.sum(hood, axis=0)
 
-        mean_weight = np.mean(weights)
-
-        graph = targets.make_graph_csr(state, weights)
+        graph = targets.make_graph_csr(state, weights)  # HACK TO TAKE THIS FUNC FROM TARGETS
 
         # calculate position, halite, and vulnerability for all opponent ships
         # vulnerability is the ratio of distance to the nearest friendly yard
@@ -65,7 +58,7 @@ class Bounties:
                 graph_dist = dijkstra(graph, indices=yards, min_only=True)
                 graph_dist = graph_dist[ship_pos]
                 ship_dis = np.amin(state.dist[np.ix_(yards, ship_pos)], axis=0)
-                ship_vul = (1 + graph_dist) / (1 + mean_weight * ship_dis)
+                ship_vul = (1 + graph_dist) / (1 + ship_dis)
 
             opp_ship_pos = np.append(opp_ship_pos, ship_pos)
             opp_ship_hal = np.append(opp_ship_hal, ship_hal)
@@ -87,14 +80,17 @@ class Bounties:
         # so we remove such ships from the targets
         # (note: & / | / ~ = and / or / not in numpy compatible way)
         target_bool = np.in1d(opp_ship_pos, prev)
-        target_bool = target_bool & (opp_ship_dis >= 1)
+        target_bool = target_bool & (opp_ship_dis >= 3)
         target_inds = np.flatnonzero(target_bool)
 
         # the pool of possible new targets consists of non-targeted ships
         # that are trapped (vulnerability > 1), have at least one hunter
         # nearby, and aren't too close to a friendly yard
         candidates = ~target_bool & (opp_ship_vul > 1)
-        candidates = candidates & (opp_ship_dis >= 3) & (nearby >= 1)
+        candidates = candidates & (opp_ship_dis >= 3) & (nearby >= 3)
+
+        # candidates = ~target_bool & (nearby >= 3)
+        # candidates = candidates & (opp_ship_dis >= 3)
 
         # we compute scores for each of the candidate ships indicating
         # the risk/reward of attacking them
@@ -113,23 +109,19 @@ class Bounties:
             num_new_targets = max(num_targets - target_inds.size, 0)
             num_new_targets = min(num_new_targets, np.sum(candidates))
 
+        # record new bounties in stats object
+        stats.total_bounties += num_new_targets
+
         # we can take those num_new_targets ships with maximum score
         # since scores are >= 0  and we forced the scores of non-candidate
         # ships to equal -1. see comment before argpartition in set_hunters
         new_inds = np.argpartition(-opp_ship_score, num_new_targets - 1)
         target_inds = np.append(target_inds, new_inds[0:num_new_targets])
 
-        # stats - remove eventually
-        self.total_bounties += num_new_targets
-        gotem = np.array([stats.last_state.opp_ships[key][1] for key in
-                          self.ship_targets if key not in state.opp_ships])
-        self.conversions += gotem.size
-        self.total_loot += np.sum(gotem)
-
         # set position/halite/rewards for the targets
         self.ship_targets_pos = opp_ship_pos[target_inds]
         self.ship_targets_hal = opp_ship_hal[target_inds]
-        self.ship_targets_rew = 1000 * np.ones_like(self.ship_targets_pos)
+        self.ship_targets_rew = 10000 * np.ones_like(self.ship_targets_pos)
 
         # write the new targets in the ship_targets list
         self.ship_targets = [key for key, val in state.opp_ships.items()
@@ -176,7 +168,7 @@ class Bounties:
 
             # take 100 instead of 1000 here, so we prefer to target ships
             # and big halite cells
-            self.yard_targets_rew = 100 * np.ones_like(self.yard_targets_pos)
+            self.yard_targets_rew = 1000 * np.ones_like(self.yard_targets_pos)
         else:
             self.yard_targets_pos = np.array([]).astype(int)
             self.yard_targets_rew = np.array([]).astype(int)
