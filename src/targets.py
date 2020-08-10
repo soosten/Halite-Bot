@@ -21,11 +21,11 @@ class Targets:
 
         # add a premium if there are a lot of ships that can attack us
         inds = state.opp_ship_hal < hal
-        inds = inds & (state.dist[state.opp_ship_pos, pos] <= 10)
+        inds = inds & (state.dist[state.opp_ship_pos, pos] <= RISK_RADIUS)
 
         # FIX UP MORE
-        YR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
         SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
+        YR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
 
         # add a premium if we need to spawn but don't have halite
         spawn = state.my_halite < state.config.spawnCost
@@ -203,12 +203,14 @@ class Targets:
         friendly = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos)
         friendly = friendly[state.dist[pos, friendly] > 1]
         if friendly.size != 0:
-            weights += MY_WEIGHT * np.sum(state.dist[friendly, :] <= 1, axis=0)
+            hood = state.dist[friendly, :] <= MY_RADIUS
+            weights += MY_WEIGHT * np.sum(hood, axis=0)
 
         # only consider opponent ships with less halite
-        threat = state.opp_ship_pos[state.opp_ship_hal <= hal]
-        if threat.size != 0:
-            weights += OPP_WEIGHT * np.sum(state.dist[threat, :] <= 2, axis=0)
+        threats = state.opp_ship_pos[state.opp_ship_hal <= hal]
+        if threats.size != 0:
+            hood = state.dist[threats, :] <= OPP_RADIUS
+            weights += OPP_WEIGHT * np.sum(hood, axis=0)
 
         # also need to go around enemy shipyards
         if state.opp_yard_pos.size != 0:

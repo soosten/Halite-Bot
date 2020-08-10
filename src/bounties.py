@@ -32,7 +32,7 @@ class Bounties:
         hunters_pos = state.my_ship_pos[likely_hunters]
 
         if hunters_pos.size != 0:
-            hood = state.dist[hunters_pos, :] <= 3
+            hood = state.dist[hunters_pos, :] <= HUNT_RADIUS
             weights += HUNT_WEIGHT * np.sum(hood, axis=0)
 
         graph = targets.make_graph_csr(state, weights)  # HACK TO TAKE THIS FUNC FROM TARGETS

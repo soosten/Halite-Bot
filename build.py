@@ -3,6 +3,7 @@
 from os import listdir
 from shutil import copyfileobj
 from kaggle_environments import make
+from random import randint
 
 
 def main():
@@ -21,8 +22,10 @@ def main():
     agents = [PATH + "submission.py", PATH + "submission.py",
               PATH + "submission.py", PATH + "submission.py"]
 
-    # run the simulation - setting a random seed is optional
-    run(PATH, agents, seed=0)
+    # run the simulation - random seed and number of steps are optional
+    # here we keep the seed random but set to a definite value so that
+    # the outcomes of individual episodes can be reproduced
+    run(PATH, agents, steps=400, seed=randint(1, 1000))
 
     print("\nDone.")
     return
