@@ -77,14 +77,15 @@ def write(PATH):
     return
 
 
-def run(PATH, agents, seed=None):
+def run(PATH, agents, steps=400, seed=None):
     # get a halite simulator from kaggle environments
     if seed is not None:
-        print(f"\nRunning simulation with seed = {seed}...\n\n")
-        env = make("halite", debug=True, configuration={"randomSeed": seed})
+        print(f"Running for {steps} steps with seed = {seed}...")
+        env = make("halite", debug=True,
+                   configuration={"randomSeed": seed, "episodeSteps": steps})
     else:
-        print("\nRunning simulation...\n\n")
-        env = make("halite", debug=True)
+        print(f"Running for {steps} steps...\n\n")
+        env = make("halite", debug=True, configuration={"episodeSteps": steps})
 
     # run the simulation
     env.run(agents)

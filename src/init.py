@@ -18,27 +18,23 @@ OPP_RADIUS = 2
 HUNT_WEIGHT = 4
 HUNT_RADIUS = 3
 
-# parameters for shipyard conversion
+# parameters for conversion and spawning
 YARD_DIST = 5
 YARD_RADIUS = 8
 MIN_CELLS = 20
-YARD_SCHEDULE = np.array([0, 10, 30, 40, 50])
+YARD_SCHEDULE = np.array([0, 10, 45])
 FIFO_MODE = True
-
-# how many steps are the "initial" and "final" phases of the game
-STEPS_INITIAL = 50
-STEPS_FINAL = 50
-
-# parameters for spawning decisions
 MAX_SHIPS = 70
 MIN_SHIPS = 15
-SPAWNING_RATIO = 0.33
-SPAWNING_STEP = 150
+SPAWNING_STEP = 100
 SPAWNING_OFFSET = 5
+
+STEPS_FINAL = 50  # no conversions of spawns with this many steps left
 
 # parameters for setting bounties and hunters
 SHIPS_PER_BOUNTY = 5
 HUNTING_MAX_RATIO = 0.33
+HUNTING_STEP = 150
 YARD_HUNTING_START = 330
 YARD_HUNTING_FINAL = 30
 YARD_HUNTING_MIN_SHIPS = 10
@@ -48,6 +44,7 @@ MIN_MINING_HALITE = 5
 # rate options
 STEPS_SPIKE = 15  # steps remaining before spike is added
 SPIKE_PREMIUM = 0.8  # spike to deposit everything at the end
+STEPS_INITIAL = 30  # don't add risk premium in first steps
 RISK_PREMIUM = 0.02  # gets added for each threat within RISK_RADIUS
 RISK_RADIUS = 12
 SPAWN_PREMIUM = 0.02  # deposit if we need halite to spawn

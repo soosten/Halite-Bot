@@ -50,9 +50,8 @@ def should_spawn(state, actor=None):
 
     # otherwise the rule is that we spawn in any of the following cases:
     # we have less ships than the opponents, we are leading by a lot,
-    # there are still many steps left in the game, there is a lot of
-    # halite on the map
-    # determine the opponent scores anf number of ships
+    # there are still many steps left in the game
+    # determine the opponent scores and number of ships
     num_ships = lambda x: x[2].size
     alive = lambda x: (x[1].size + x[2].size) > 0
     score = lambda x: alive(x) * (x[0] + np.sum(x[3]))
@@ -62,29 +61,26 @@ def should_spawn(state, actor=None):
     # spawn if we there is a lot of time left
     spawn = state.step < SPAWNING_STEP
 
-    # spawn if there is a lot of halite on the map
-    ratio = np.sum(state.halite_map) / state.config.startingHalite
-    spawn = spawn or ratio > SPAWNING_RATIO
-
     # spawn if we have fewer ships than the opponents
     # but we take this less seriously at the end of the game
     offset = SPAWNING_OFFSET * (state.step / state.total_steps)
-    spawn = spawn or my_ships < max_opp_ships - offset
+    spawn = spawn or (my_ships < max_opp_ships - offset)
 
     # spawn if we are below the minimum number of ships
-    spawn = spawn or my_ships < MIN_SHIPS
+    spawn = spawn or (my_ships < MIN_SHIPS)
 
     # spawn if we have more halite than opponents. the formula below is
     #  buffer = 500 (= spawnCost) halfway through the game and buffer = 1500
     # (= spawnCost + 2 * convertCost) when there are < 50 steps remaining
     op_costs = state.config.spawnCost + state.config.convertCost
     buffer = 2 * op_costs * ((state.step / state.total_steps) ** 2)
-    spawn = spawn or my_score > max_opp_score + buffer
+    spawn = spawn or (my_score > max_opp_score + buffer)
 
     # finally, spawn if the yard is a fifo yard without a ship
     if actor is not None:
         pos = state.my_yards[actor]
-        fifo_spawn = pos in fifos.fifo_pos and pos not in state.my_ship_pos
+        fifo_spawn = (pos in fifos.fifo_pos)
+        fifo_spawn = fifo_spawn and (pos not in state.my_ship_pos)
         spawn = spawn or fifo_spawn
 
     return spawn

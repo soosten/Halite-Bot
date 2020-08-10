@@ -100,10 +100,11 @@ class Bounties:
 
         # determine how many targets we would like to have and how many
         # new targets we should/can build. we only set new targets if
-        # there is not a lot of halite left that we can mine
+        # there is not a lot of halite left that we can mine - however
+        # we always hunt after the first part of the game
         ratio = np.sum(state.halite_map) / state.config.startingHalite
 
-        if ratio > HUNTING_MAX_RATIO:
+        if (ratio > HUNTING_MAX_RATIO) and (state.step < HUNTING_STEP):
             num_new_targets = 0
         else:
             num_new_targets = max(num_targets - target_inds.size, 0)
