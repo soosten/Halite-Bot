@@ -5,7 +5,7 @@ def conversions(state, queue, actions):
 
     # don't build any yards in the final phase of the game
     # survive() already ensures we keep at least one
-    if state.total_steps - state.step < STEPS_FINAL:
+    if state.step > YARD_MAX_STEP:
         return False
 
     # otherwise keep a number of yards depending on how many ships we have

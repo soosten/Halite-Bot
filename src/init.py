@@ -19,10 +19,11 @@ HUNT_WEIGHT = 4
 HUNT_RADIUS = 3
 
 # parameters for conversion and spawning
-YARD_DIST = 5
+YARD_DIST = 8
 YARD_RADIUS = 8
 MIN_CELLS = 20
-YARD_SCHEDULE = np.array([0, 10, 45])
+YARD_SCHEDULE = np.array([0, 10])
+YARD_MAX_STEP = 50
 FIFO_MODE = True
 MAX_SHIPS = 70
 MIN_SHIPS = 15
