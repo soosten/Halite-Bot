@@ -167,7 +167,7 @@ class Targets:
         # decreases the distance to our target
         hood_dists = self.distances[ship][0]
         dest_dists = hood_dists[:, site]
-        dist_after = lambda x: dest_dists[self.nnsew.index(x)]
+        dist_after = lambda x: dest_dists[self.nnsew.index(x)] + (x is None) / 2  # YOOOOOO HACK
         self.rankings[ship] = self.nnsew.copy()
         self.rankings[ship].sort(key=dist_after)
 

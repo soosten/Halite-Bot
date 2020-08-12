@@ -5,7 +5,7 @@
 # heuristic: going "through a site" usually takes two steps. if you
 # to go "around the site" while staying 1 step away it takes 4 steps
 # so the weight should be > 4/2 = 2
-MY_WEIGHT = 1
+MY_WEIGHT = 2
 MY_RADIUS = 1
 
 # going "through 3 sites" usually takes 4 steps. if you want to go
@@ -19,10 +19,10 @@ HUNT_WEIGHT = 4
 HUNT_RADIUS = 3
 
 # parameters for conversion and spawning
-YARD_DIST = 8
-YARD_RADIUS = 8
+YARD_DIST = 7
+YARD_RADIUS = 4
 MIN_CELLS = 20
-YARD_SCHEDULE = np.array([0, 10])
+YARD_SCHEDULE = np.array([0, 0, 40])
 YARD_MAX_STEP = 50
 FIFO_MODE = True
 MAX_SHIPS = 70
