@@ -45,7 +45,7 @@ MIN_MINING_HALITE = 5
 # rate options
 STEPS_SPIKE = 15  # steps remaining before spike is added
 SPIKE_PREMIUM = 0.8  # spike to deposit everything at the end
-STEPS_INITIAL = 30  # don't add risk premium in first steps
+STEPS_INITIAL = 50  # don't add risk premium in first steps
 RISK_PREMIUM = 0.02  # gets added for each threat within RISK_RADIUS
 SPAWN_PREMIUM = 0.01  # deposit if we need halite to spawn
 BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
