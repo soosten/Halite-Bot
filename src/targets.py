@@ -21,7 +21,7 @@ class Targets:
 
         # add a premium if there are a lot of ships that can attack us
         inds = state.opp_ship_hal < hal
-        inds = inds & (state.dist[state.opp_ship_pos, pos] <= RISK_RADIUS)
+        # inds = inds & (state.dist[state.opp_ship_pos, pos] <= RISK_RADIUS)
 
         # FIX UP MORE
         SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)

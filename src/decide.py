@@ -21,7 +21,7 @@ def decide(state, actor):
 
 def should_spawn(state, actor=None):
     # my number of ships (not counting fifo) and score = halite + cargo
-    my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
+    my_ships = state.my_ship_pos.size - fifos.fifo_pos.size
     my_score = state.my_halite + np.sum(state.my_ship_hal)
 
     # check for some special scenarios in which we should not spawn
