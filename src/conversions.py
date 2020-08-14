@@ -9,7 +9,7 @@ def conversions(state, queue, actions):
         return False
 
     # otherwise keep a number of yards depending on how many ships we have
-    num_ships = state.my_ship_pos.size - fifos.fifo_pos.size
+    num_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
     yards_wanted = np.sum(num_ships > YARD_SCHEDULE)
     if state.my_yard_pos.size >= yards_wanted:
         return
@@ -20,7 +20,13 @@ def conversions(state, queue, actions):
     def score(ship):
         # compute distance to nearest yard
         pos = state.my_ships[ship][0]
+
         yard_dist = np.amin(state.dist[state.my_yard_pos, pos])
+
+        if state.opp_yard_pos.size != 0:
+            opp_yard_dist = np.amin(state.dist[state.opp_yard_pos, pos])
+        else:
+            opp_yard_dist = OPP_YARD_DIST
 
         # count number of halite cells within YARD_RADIUS
         hood = (state.dist[pos, :] <= YARD_RADIUS) & (state.halite_map > 0)
@@ -28,7 +34,11 @@ def conversions(state, queue, actions):
 
         # score is number of halite cells unless there are too few
         # or we are too close to a yard
-        return cells * (yard_dist >= YARD_DIST and cells >= MIN_CELLS)
+        eligible = (yard_dist >= YARD_DIST)
+        eligible &= (opp_yard_dist >= OPP_YARD_DIST)
+        eligible &= (cells >= MIN_CELLS)
+
+        return cells * eligible
 
     # convert the ship with maximum score
     ship = max(queue.ships.keys(), key=score)

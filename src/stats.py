@@ -3,7 +3,6 @@ class Stats:
         self.last_state = None
         self.state = None
         self.yard_attackers = []
-        self.idle_ships = {}
 
         self.total_bounties = 0
         self.converted_bounties = 0
@@ -28,10 +27,6 @@ class Stats:
         # use deepcopy that we keep the state at the beginning of our turn
         # and don't update as we go through deciding actions for our actors
         self.state = deepcopy(argstate)
-
-        # remove any non-existent ships from idling count
-        self.idle_ships = {key: val for key, val in self.idle_ships.items()
-                           if key in self.state.my_ships}
 
         # determine if anyone destroyed a shipyard last turn and
         # add the suspect to list of yard attackers
@@ -104,8 +99,8 @@ class Stats:
         # see if any of the bounties we set was destroyed
         hunted = [self.last_state.opp_ships[key][1] for key in
                   bounties.ship_targets if key not in self.state.opp_ships]
-        stats.converted_bounties += len(hunted)
-        stats.loot += sum(hunted)
+        self.converted_bounties += len(hunted)
+        self.loot += sum(hunted)
 
         return
 

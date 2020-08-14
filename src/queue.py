@@ -4,11 +4,17 @@ class Queue:
         self.ships = {ship: state.unsafe_sites(ship)
                       for ship in state.my_ships}
 
-        # store positions of those ships that are being pursued by opponents
-        near = state.dist[np.ix_(state.my_ship_pos, state.opp_ship_pos)] <= 1
-        threats = state.my_ship_hal[:, np.newaxis] > state.opp_ship_hal
-        hunters = np.count_nonzero(near & threats, axis=1)
-        self.hunted = state.my_ship_pos[hunters > 0]
+        # ships that are being hunted
+        pos = lambda ship: state.my_ships[ship][0]
+        self.hunted = {ship for ship, unsafe in self.ships.items()
+                       if unsafe[pos(ship)]}
+
+        # ships with no cargo
+        cargo = lambda ship: state.my_ships[ship][1]
+        self.empty = {ship for ship in self.ships if cargo(ship) == 0}
+
+        # default priority function
+        self.value = lambda ship: targets.values.get(ship, 0)
 
         # we can compute the priorities of yards right away
         # we want to spawn first a yard that are in "contested" areas
@@ -28,11 +34,12 @@ class Queue:
     def remove(self, actor):
         self.ships.pop(actor, None)
         self.yards.pop(actor, None)
+        self.hunted.discard(actor)
+        self.empty.discard(actor)
         return
 
     def schedule(self, state):
-        # update the non-colliding moves for each ship with
-        # the result of the last turn
+        # update the non-colliding moves for each ship
         self.ships = {key: val | state.moved_this_turn
                       for key, val in self.ships.items()}
 
@@ -42,24 +49,19 @@ class Queue:
 
         # then schedule any ships with opponents in pursuit
         if nextup is None:
-            pos = lambda ship: state.my_ships[ship][0]
-            running = (ship for ship in self.ships if pos(ship) in self.hunted)
-            nextup = next(running, None)
+            nextup = next(iter(self.hunted), None)
+
+        # then schedule yards
+        if nextup is None:
+            nextup = max(self.yards, default=None, key=self.yards.get)
 
         # then schedule any ships with no cargo
         if nextup is None:
-            cargo = lambda ship: state.my_ships[ship][1]
-            empty = (ship for ship in self.ships if cargo(ship) == 0)
-            nextup = next(empty, None)
+            nextup = next(iter(self.empty), None)
 
-        # if there are no such ships, choose the one with the highest value
+        # finally choose schedule remaining ships by value
         if nextup is None:
-            value = lambda ship: targets.values.get(ship, 0)
-            nextup = max(self.ships, default=None, key=value)
-
-        # if there are no ships, schedule yards by priority
-        if nextup is None:
-            nextup = max(self.yards, default=None, key=self.yards.get)
+            nextup = max(self.ships, default=None, key=self.value)
 
         # pop the scheduled actor from the pending list
         self.remove(nextup)

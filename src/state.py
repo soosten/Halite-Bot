@@ -45,7 +45,6 @@ class State:
 
         # sets a number of numpy arrays deriving from self.my_ships, etc
         self.set_derived()
-
         return
 
     def set_opp_data(self, obs):
@@ -123,7 +122,7 @@ class State:
     def update(self, actor, action):
         # if actor is a yard only spawning has an effect on state
         if (actor in self.my_yards) and (action == "SPAWN"):
-            # modify the id string
+            # create new id string
             newid = f"spawn[{actor}]"
 
             # create a new ship with no cargo at yard position
@@ -140,11 +139,8 @@ class State:
             pos, hal = self.my_ships[actor]
 
             if action == "CONVERT":
-                #  modify the id string
-                newid = f"convert[{actor}]"
-
                 # create a new yard at ship position and remove ship
-                self.my_yards[newid] = pos
+                self.my_yards[actor] = pos
                 del self.my_ships[actor]
 
                 # remove conversion cost from available halite but don't add
@@ -187,8 +183,7 @@ class State:
             # can only convert if you still have enough halite afterwards
             # to spawn a new ship
             minhal = self.config.convertCost - hal
-            if len(self.my_ships) == 1:
-                minhal += self.config.spawnCost
+            minhal += self.config.spawnCost * (len(self.my_ships) == 1)
 
             # can't convert if you don't have enough halite or are in a yard
             if (self.my_halite < minhal) or (pos in self.my_yard_pos):
@@ -240,10 +235,10 @@ class State:
         # as this will cost them their ship too
         if less_hal.size != 0:
             hood = np.amin(self.dist[less_hal, :], axis=0) <= 1
-            hood = hood & (~np.in1d(self.sites, self.my_yard_pos))
-            unsafe = unsafe | hood
+            hood &= ~np.in1d(self.sites, self.my_yard_pos)
+            unsafe |= hood
 
         if yards:
-            unsafe = unsafe | np.in1d(self.sites, self.opp_yard_pos)
+            unsafe |= np.in1d(self.sites, self.opp_yard_pos)
 
         return unsafe

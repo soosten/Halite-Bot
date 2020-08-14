@@ -22,7 +22,7 @@ class Bounties:
         # positions of our hunters have higher weights.
         weights = np.ones_like(state.sites)
 
-        num_ships = state.my_ship_pos.size - fifos.fifo_pos.size
+        num_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
         num_targets = num_ships // SHIPS_PER_BOUNTY
         num_hunters = 5 * num_targets
 
@@ -79,18 +79,14 @@ class Bounties:
         # if a ship is too close to a friendly yard, it will probably escape
         # so we remove such ships from the targets
         # (note: & / | / ~ = and / or / not in numpy compatible way)
-        target_bool = np.in1d(opp_ship_pos, prev)
-        target_bool = target_bool & (opp_ship_dis >= 3)
+        target_bool = np.in1d(opp_ship_pos, prev) & (opp_ship_dis >= 3)
         target_inds = np.flatnonzero(target_bool)
 
         # the pool of possible new targets consists of non-targeted ships
         # that are trapped (vulnerability > 1), have at least one hunter
         # nearby, and aren't too close to a friendly yard
         candidates = ~target_bool & (opp_ship_vul > 1)
-        candidates = candidates & (opp_ship_dis >= 3) & (nearby >= 3)
-
-        # candidates = ~target_bool & (nearby >= 3)
-        # candidates = candidates & (opp_ship_dis >= 3)
+        candidates &= (opp_ship_dis >= 3) & (nearby >= 3)
 
         # we compute scores for each of the candidate ships indicating
         # the risk/reward of attacking them

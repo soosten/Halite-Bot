@@ -51,12 +51,17 @@ def agent(obs, config):
         if action is not None:
             actions[actor] = action
 
+    # keep track of time spent
+    tock = time()
+    stats.total_time += tock - tick
+
     # print some statistics about the game before the last step
     if 2 + state.step == state.total_steps:
         stats.summary()
 
-    # keep track of time spent
-    tock = time()
-    stats.total_time += tock - tick
+    # print how long the step took
+    elif PRINT_STEP_TIMES:
+        ticktock = round(tock - tick, 2)
+        print(f"Step {1 + state.step} took {ticktock} seconds")
 
     return actions

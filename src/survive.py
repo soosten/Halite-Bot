@@ -78,11 +78,8 @@ def spawn_maximum(state, queue):
         # schedule the next yard
         yard = queue.schedule(state)
 
-        # list of legal moves
-        legal = state.legal_actions(yard)
-
         # if spawning is legal, do it
-        if "SPAWN" in legal:
+        if "SPAWN" in state.legal_actions(yard):
             state.update(yard, "SPAWN")
             actions[yard] = "SPAWN"
 

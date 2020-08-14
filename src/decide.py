@@ -7,11 +7,6 @@ def decide(state, actor):
         candidates = filter_moves(actor, state, destination)
         decision = min(candidates, key=lambda move: ranking.index(move))
 
-        # if we decide None, add 1 to the counter of successive idling
-        # moves for the ship, otherwise set counter to zero
-        idle_count = stats.idle_ships.get(actor, 0)
-        stats.idle_ships[actor] = (idle_count + 1) * (decision is None)
-
     # if the actor is a yard, we check whether we should spawn or not
     elif actor in state.my_yards:
         decision = "SPAWN" if should_spawn(state, actor) else None
@@ -21,25 +16,21 @@ def decide(state, actor):
 
 def should_spawn(state, actor=None):
     # my number of ships (not counting fifo) and score = halite + cargo
-    my_ships = state.my_ship_pos.size - fifos.fifo_pos.size
+    my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
     my_score = state.my_halite + np.sum(state.my_ship_hal)
 
     # check for some special scenarios in which we should not spawn
     if actor is not None:
-        # if spawning is not legal
-        if "SPAWN" not in state.legal_actions(actor):
-            return False
+        illegal = "SPAWN" not in state.legal_actions(actor)
+        collision = state.self_collision(actor, "SPAWN")
 
-        # if spawing results in collision
-        if state.self_collision(actor, "SPAWN"):
-            return False
-
-        # if there is too much traffic at the yard
         pos = state.my_yards[actor]
-        if np.count_nonzero(state.dist[state.my_ship_pos, pos] <= 1) >= 4:
+        traffic_jam = np.sum(state.dist[state.my_ship_pos, pos] <= 1) >= 4
+
+        if illegal or collision or traffic_jam:
             return False
 
-    # if we already have a lot of ships
+    # if we already have enough ships
     if my_ships >= MAX_SHIPS:
         return False
 
@@ -62,26 +53,26 @@ def should_spawn(state, actor=None):
     spawn = state.step < SPAWNING_STEP
 
     # spawn if we have fewer ships than the opponents
-    # but we take this less seriously at the end of the game
+    # but take this less seriously at the end of the game
     offset = SPAWNING_OFFSET * (state.step / state.total_steps)
-    spawn = spawn or (my_ships < max_opp_ships - offset)
+    spawn |= (my_ships < max_opp_ships - offset)
 
     # spawn if we are below the minimum number of ships
-    spawn = spawn or (my_ships < MIN_SHIPS)
+    spawn |= (my_ships < MIN_SHIPS)
 
     # spawn if we have more halite than opponents. the formula below is
     #  buffer = 500 (= spawnCost) halfway through the game and buffer = 1500
     # (= spawnCost + 2 * convertCost) when there are < 50 steps remaining
     op_costs = state.config.spawnCost + state.config.convertCost
     buffer = 2 * op_costs * ((state.step / state.total_steps) ** 2)
-    spawn = spawn or (my_score > max_opp_score + buffer)
+    spawn |= (my_score > max_opp_score + buffer)
 
     # finally, spawn if the yard is a fifo yard without a ship
     if actor is not None:
         pos = state.my_yards[actor]
         fifo_spawn = (pos in fifos.fifo_pos)
         fifo_spawn = fifo_spawn and (pos not in state.my_ship_pos)
-        spawn = spawn or fifo_spawn
+        spawn |= fifo_spawn
 
     return spawn
 
@@ -93,11 +84,7 @@ def filter_moves(ship, state, destination):
     # destination is to destroy a shipyard, we don't check for collision with
     # enemy shipyards
     yards = (destination not in bounties.yard_targets_pos)
-
-    # relax the strict opponent collision checking if we
-    # have been idling at some site
-    idle_count = stats.idle_ships.get(ship, 0)
-    strict = idle_count <= 5
+    strict = True
 
     # legal moves
     nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
@@ -127,17 +114,13 @@ def filter_moves(ship, state, destination):
     if len(candidates) == 0:
         candidates = nnsew
 
-    # there are two situations where None is not a good move and
+    # there are some situations where None is not a good move and
     # we would prefer to remove it from candidates if possible
-    if None in candidates and len(candidates) >= 2:
-        # don't idle on shipyards - we need room to spawn and deposit
-        if pos in state.my_yard_pos:
-            candidates.remove(None)
+    none_flag = opp_col_flag
+    none_flag |= (pos in state.my_yard_pos)
+    none_flag |= (pos != destination and state.halite_map[pos] > 0 and destination not in state.my_yard_pos)
 
-        # if we cannot avoid opponent collisions with certainty, we should
-        # move. since hunters will send a ship onto the square we're occupying,
-        # we can sometimes get lucky by going to a square no longer covered
-        if opp_col_flag:
-            candidates.remove(None)
+    if none_flag and (None in candidates) and (len(candidates) >= 2):
+        candidates.remove(None)
 
     return candidates

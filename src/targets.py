@@ -16,16 +16,28 @@ class Targets:
     def rates(self, state, ship):
         pos, hal = state.my_ships[ship]
 
+        # SR = BASELINE_SHIP_RATE
+        # YR = BASELINE_YARD_RATE
+
+        # # add a premium if there are a lot of ships that can attack us
+        # if state.step > STEPS_INITIAL:
+        #     risk = RISK_PREMIUM * np.sum(state.opp_ship_hal < hal)
+        # else:
+        #     risk = 0.05 * (state.step / STEPS_INITIAL)
+
+        # SR += risk
+        # YR += risk
+
         SR = BASELINE_SHIP_RATE
         YR = BASELINE_YARD_RATE
 
         # add a premium if there are a lot of ships that can attack us
         inds = state.opp_ship_hal < hal
-        # inds = inds & (state.dist[state.opp_ship_pos, pos] <= RISK_RADIUS)
+        inds = inds & (state.dist[state.opp_ship_pos, pos] <= RISK_RADIUS)
 
         # FIX UP MORE
-        SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
         YR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
+        SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
 
         # add a premium if we need to spawn but don't have halite
         spawn = state.my_halite < state.config.spawnCost
@@ -109,7 +121,14 @@ class Targets:
         # see notes for explanation of these quantities
         C = state.my_ships[ship][1]
 
+        # indices of minable sites
         minable = state.halite_map > MIN_MINING_HALITE
+
+        # # ignore halite next to enemy yards so ships don't get poached
+        if state.opp_yard_pos.size != 0:
+            no_yards = np.amin(state.dist[state.opp_yard_pos, :], axis=0) > 1
+            minable = minable & no_yards
+
         H = state.halite_map[minable]
         SD = ship_dists[minable]
         YD = yard_dists[minable]
@@ -143,12 +162,6 @@ class Targets:
         discount = (1 + HR) ** ship_dists[yard_hunt_pos]
         reward_map[yard_hunt_pos] = yard_hunt_rew / discount
 
-        # black out rewards right next to enemy yards
-        # so ships don't get poached or stuck there
-        if state.opp_yard_pos.size != 0:
-            hood = np.amin(state.dist[state.opp_yard_pos, :], axis=0) == 1
-            reward_map[hood] = 0
-
         if return_appended:
             # copy the ship yard rewards onto the duplicate ship yards and
             # append the duplicate rewards
@@ -163,11 +176,13 @@ class Targets:
         self.destinations[ship] = site
         self.values[ship] = value
 
-        # then store a copy of nnsew, sorted by how much the move
-        # decreases the distance to our target
+        # then store a copy of nnsew, sorted by how much the move decreases
+        # the distance to our target. give a 1/2 penalty to None, so that we
+        # move instead of staying put if there is no difference in the distance
         hood_dists = self.distances[ship][0]
         dest_dists = hood_dists[:, site]
-        dist_after = lambda x: dest_dists[self.nnsew.index(x)] + (x is None) / 2  # YOOOOOO HACK
+        dist_after = lambda move: dest_dists[self.nnsew.index(move)] \
+                   + (move is None) / 2
         self.rankings[ship] = self.nnsew.copy()
         self.rankings[ship].sort(key=dist_after)
 
