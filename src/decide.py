@@ -116,9 +116,17 @@ def filter_moves(ship, state, destination):
 
     # there are some situations where None is not a good move and
     # we would prefer to remove it from candidates if possible
+    # don't stay put if we are being hunted - could get lucky by moving
     none_flag = opp_col_flag
+
+    # don't cause unnecessary traffic at yards
     none_flag |= (pos in state.my_yard_pos)
-    none_flag |= (pos != destination and state.halite_map[pos] > 0 and destination not in state.my_yard_pos)
+
+    # don't pick up unwanted cargo that makes us vulnerable
+    no_cargo = (pos != destination)
+    no_cargo &= (state.halite_map[pos] > 0)
+    no_cargo &= (destination not in state.my_yard_pos)
+    none_flag |= no_cargo
 
     if none_flag and (None in candidates) and (len(candidates) >= 2):
         candidates.remove(None)

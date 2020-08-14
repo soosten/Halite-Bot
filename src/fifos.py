@@ -10,20 +10,6 @@ class Fifos:
         if not FIFO_MODE:
             return
 
-        # remove any fifo yard positions that may have been destroyed
-        # self.fifo_pos = np.intersect1d(self.fifo_pos, state.my_yard_pos)
-
-        # # if an opponent that has attacked shipyards in the past gets within
-        # # radius 2 of a yard, we add the yard to the fifo yards
-        # attacker_pos = np.array([]).astype(int)
-        # for opp in stats.yard_attackers:
-        #     attacker_pos = np.append(attacker_pos, state.opp_data[opp][2])
-
-        # if attacker_pos.size != 0:
-        #     dist = state.dist[np.ix_(attacker_pos, state.my_yard_pos)]
-        #     inds = np.amin(dist, axis=0) <= 2
-        #     self.fifo_pos = np.union1d(self.fifo_pos, state.my_yard_pos[inds])
-
         if state.step > FIFO_STEP:
             self.fifo_pos = state.my_yard_pos
 
@@ -51,7 +37,7 @@ class Fifos:
         else:
             pos = -1
 
-        ship, moves = self.stripped.get(pos, [None, None])
+        ship, moves = self.stripped.pop(pos, [None, None])
 
         # if ship is None, the actor was not on a fifo position or a
         # yard that didn't spawn so nothing to do here

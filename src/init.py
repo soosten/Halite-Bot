@@ -31,11 +31,10 @@ MAX_SHIPS = 70
 MIN_SHIPS = 15
 SPAWNING_STEP = 100
 SPAWNING_OFFSET = 5
-
 STEPS_FINAL = 50  # no conversions of spawns with this many steps left
 
 # parameters for setting bounties and hunters
-SHIPS_PER_BOUNTY = 6  # try higher?
+SHIPS_PER_BOUNTY = 6
 HUNTING_MAX_RATIO = 0.33
 HUNTING_STEP = 150
 YARD_HUNTING_START = 330
@@ -44,27 +43,16 @@ YARD_HUNTING_MIN_SHIPS = 10
 YARD_HUNTING_RADIUS = 6
 MIN_MINING_HALITE = 0
 
-# # rate options
-# STEPS_SPIKE = 15  # steps remaining before spike is added
-# SPIKE_PREMIUM = 0.8  # spike to deposit everything at the end
-# STEPS_INITIAL = 50  # don't add risk premium in first steps
-# RISK_PREMIUM = 0.01  # gets added for each threat within RISK_RADIUS
-# BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
-# BASELINE_YARD_RATE = 0  # tendency to go to yard / mine for less time
-
-STEPS_INITIAL = 50
-RISK_RADIUS = 10
-
 # rate options
 STEPS_SPIKE = 15  # steps remaining before spike is added
 SPIKE_PREMIUM = 0.8  # spike to deposit everything at the end
-RISK_PREMIUM = 0.02  # gets added for each threat within radius 10
+RISK_RADIUS = 10
+RISK_PREMIUM = 0.02  # gets added for each threat within radius RISK_RADIUS
+STEPS_INITIAL = 50  # don't add risk before this step
+SPAWN_PREMIUM_STEP = 20  # don't add spawn premium before this step
 SPAWN_PREMIUM = 0.01  # deposit if we need halite to spawn
 BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
 BASELINE_YARD_RATE = 0.02  # tendency to go to yard / mine for less time
-
-
-
 
 # print how long each step took?
 PRINT_STEP_TIMES = False

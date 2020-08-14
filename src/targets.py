@@ -16,18 +16,6 @@ class Targets:
     def rates(self, state, ship):
         pos, hal = state.my_ships[ship]
 
-        # SR = BASELINE_SHIP_RATE
-        # YR = BASELINE_YARD_RATE
-
-        # # add a premium if there are a lot of ships that can attack us
-        # if state.step > STEPS_INITIAL:
-        #     risk = RISK_PREMIUM * np.sum(state.opp_ship_hal < hal)
-        # else:
-        #     risk = 0.05 * (state.step / STEPS_INITIAL)
-
-        # SR += risk
-        # YR += risk
-
         SR = BASELINE_SHIP_RATE
         YR = BASELINE_YARD_RATE
 
@@ -42,7 +30,7 @@ class Targets:
         # add a premium if we need to spawn but don't have halite
         spawn = state.my_halite < state.config.spawnCost
         spawn = spawn and should_spawn(state)
-        spawn = spawn and state.step > 20
+        spawn = spawn and state.step > SPAWN_PREMIUM_STEP
         SR += SPAWN_PREMIUM * spawn
         YR += SPAWN_PREMIUM * spawn
 
