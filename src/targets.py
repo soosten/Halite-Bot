@@ -1,5 +1,4 @@
 class Targets:
-
     def __init__(self):
         self.nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
 
