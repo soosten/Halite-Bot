@@ -33,13 +33,13 @@ def main():
 
 def write(PATH):
     # list of files in PATH/src/ that are not system files
-    src_dir = [name for name in listdir(PATH + "src/") if name[0] != "."]
+    src = [name for name in listdir(PATH + "src/") if name[0] != "."]
 
     # check if agent.py, init.py, and imports.py exist and remove them
     try:
-        src_dir.remove("agent.py")
-        src_dir.remove("init.py")
-        src_dir.remove("imports.py")
+        src.remove("agent.py")
+        src.remove("init.py")
+        src.remove("imports.py")
 
     except ValueError:
         print("Error: /src/ directory must contain agent.py, "
@@ -48,7 +48,7 @@ def write(PATH):
 
     # write the files in lexicographical order so its easier to
     # scroll to them in the combined file
-    src_dir.sort()
+    src.sort()
 
     # write imports.py, then all files in PATH/src/, then init.py,
     # and finally agent.py into submission.py
@@ -59,7 +59,7 @@ def write(PATH):
             copyfileobj(file, submission)
         submission.write("\n\n")
 
-        for name in src_dir:
+        for name in src:
             print("  " + name)
             with open(PATH + "src/" + name, "r") as file:
                 copyfileobj(file, submission)

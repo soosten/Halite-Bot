@@ -114,8 +114,7 @@ class Targets:
 
         # # ignore halite next to enemy yards so ships don't get poached
         if state.opp_yard_pos.size != 0:
-            no_yards = np.amin(state.dist[state.opp_yard_pos, :], axis=0) > 1
-            minable = minable & no_yards
+            minable &= np.amin(state.dist[state.opp_yard_pos, :], axis=0) > 1
 
         H = state.halite_map[minable]
         SD = ship_dists[minable]
@@ -228,19 +227,20 @@ class Targets:
         nsites = state.map_size ** 2
 
         # weight at any edge (x,y) is (w[x] + w[y])/2
-        site_weights = weights[state.sites]
-        n_weights = 0.5 * (site_weights + weights[state.north])
-        s_weights = 0.5 * (site_weights + weights[state.south])
-        e_weights = 0.5 * (site_weights + weights[state.east])
-        w_weights = 0.5 * (site_weights + weights[state.west])
-
         # column indices for row i are in indices[indptr[i]:indptr[i+1]]
         # and their corresponding values are in data[indptr[i]:indptr[i+1]]
-        indptr = 4 * state.sites
-        indptr = np.append(indptr, 4 * nsites)
-        indices = np.vstack((state.north, state.south, state.east, state.west))
-        indices = np.ravel(indices, "F")
-        data = np.vstack((n_weights, s_weights, e_weights, w_weights))
-        data = np.ravel(data, "F")
+        indptr = 4 * np.append(state.sites, nsites)
+
+        indices = np.empty(4 * nsites, dtype=np.int_)
+        indices[0::4] = state.north
+        indices[1::4] = state.south
+        indices[2::4] = state.east
+        indices[3::4] = state.west
+
+        data = np.empty(4 * nsites, dtype=np.float_)
+        data[0::4] = 0.5 * (weights + weights[state.north])
+        data[1::4] = 0.5 * (weights + weights[state.south])
+        data[2::4] = 0.5 * (weights + weights[state.east])
+        data[3::4] = 0.5 * (weights + weights[state.west])
 
         return csr_matrix((data, indices, indptr), shape=(nsites, nsites))

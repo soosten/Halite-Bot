@@ -10,8 +10,15 @@ class Fifos:
         if not FIFO_MODE:
             return
 
-        if state.step > FIFO_STEP:
-            self.fifo_pos = state.my_yard_pos
+        # remove any fifo yard positions that may have been destroyed
+        self.fifo_pos = np.intersect1d(self.fifo_pos, state.my_yard_pos)
+
+        # if there is an opponent ship within distance 2 of the yard,
+        # add this yard to fifo yards
+        if state.opp_ship_pos.size != 0:
+            dist = state.dist[np.ix_(state.opp_ship_pos, state.my_yard_pos)]
+            yards = state.my_yard_pos[np.amin(dist, axis=0) <= 2]
+            self.fifo_pos = np.union1d(self.fifo_pos, yards)
 
         return
 

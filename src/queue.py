@@ -43,25 +43,25 @@ class Queue:
         self.ships = {key: val | state.moved_this_turn
                       for key, val in self.ships.items()}
 
-        # first schedule any ships with <= 1 possible moves
+        # schedule any ships with <= 1 possible moves
         stuck = (ship for ship, val in self.ships.items() if np.sum(~val) <= 1)
         nextup = next(stuck, None)
 
-        # then schedule any ships with opponents in pursuit
+        # schedule any ships with opponents in pursuit
         if nextup is None:
             nextup = next(iter(self.hunted), None)
 
-        # then schedule yards
-        if nextup is None:
-            nextup = max(self.yards, default=None, key=self.yards.get)
-
-        # then schedule any ships with no cargo
+        # schedule any ships with no cargo
         if nextup is None:
             nextup = next(iter(self.empty), None)
 
-        # finally choose schedule remaining ships by value
+        # schedule remaining ships by value
         if nextup is None:
             nextup = max(self.ships, default=None, key=self.value)
+
+        # schedule yards
+        if nextup is None:
+            nextup = max(self.yards, default=None, key=self.yards.get)
 
         # pop the scheduled actor from the pending list
         self.remove(nextup)

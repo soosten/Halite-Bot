@@ -19,14 +19,13 @@ HUNT_WEIGHT = 4
 HUNT_RADIUS = 3
 
 # parameters for conversion and spawning
-YARD_DIST = 7
+YARD_DIST = 6
 OPP_YARD_DIST = 3
 YARD_RADIUS = 4
-MIN_CELLS = 20
-YARD_SCHEDULE = np.array([0, 0])
+MIN_CELLS = 15
+YARD_SCHEDULE = np.array([0, 10])
 YARD_MAX_STEP = 200
 FIFO_MODE = True
-FIFO_STEP = 50
 MAX_SHIPS = 70
 MIN_SHIPS = 15
 SPAWNING_STEP = 100
@@ -44,7 +43,7 @@ YARD_HUNTING_RADIUS = 6
 MIN_MINING_HALITE = 0
 
 # rate options
-STEPS_SPIKE = 15  # steps remaining before spike is added
+STEPS_SPIKE = 30  # steps remaining before spike is added
 SPIKE_PREMIUM = 0.8  # spike to deposit everything at the end
 RISK_RADIUS = 10
 RISK_PREMIUM = 0.02  # gets added for each threat within radius RISK_RADIUS
@@ -55,7 +54,7 @@ BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
 BASELINE_YARD_RATE = 0.02  # tendency to go to yard / mine for less time
 
 # print how long each step took?
-PRINT_STEP_TIMES = False
+PRINT_STEP_TIMES = True
 
 # intialize global strategy objects we keep throughout the episode
 stats = Stats()

@@ -10,7 +10,7 @@ def conversions(state, queue, actions):
 
     # otherwise keep a number of yards depending on how many ships we have
     num_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
-    yards_wanted = np.sum(num_ships > YARD_SCHEDULE)
+    yards_wanted = np.sum(num_ships >= YARD_SCHEDULE)
     if state.my_yard_pos.size >= yards_wanted:
         return
 
@@ -35,8 +35,8 @@ def conversions(state, queue, actions):
         # score is number of halite cells unless there are too few
         # or we are too close to a yard
         eligible = (yard_dist >= YARD_DIST)
-        eligible &= (opp_yard_dist >= OPP_YARD_DIST)
-        eligible &= (cells >= MIN_CELLS)
+        eligible = eligible and (opp_yard_dist >= OPP_YARD_DIST)
+        eligible = eligible and (cells >= MIN_CELLS)
 
         return cells * eligible
 

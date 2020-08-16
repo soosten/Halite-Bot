@@ -14,7 +14,7 @@ def agent(obs, config):
     # as we decide on actions for our ships/yards we write them into the
     # actions dictionary, which is what is returned to the environment
     # we initialize actions with the minimal actions needed to ensure
-    # survival (usual just the empty dictionary {})
+    # survival (usually just the empty dictionary {})
     actions = survive(state, queue)
 
     # decide if any ships should convert

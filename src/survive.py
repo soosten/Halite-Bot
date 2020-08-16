@@ -17,9 +17,9 @@ def survive(state, queue):
         else:
             actions = run_and_collect(state, queue)
 
-    # do elif since it can never happen that we start the turn without any
+    # elif since it can never happen that we start the turn without any
     # ships or yards - but it can happen that the previous block converted
-    # our last ship...
+    # our last ship
     elif len(state.my_ships) == 0:
         # spawn as many ships as we can afford
         actions = spawn_maximum(state, queue)
@@ -31,31 +31,40 @@ def run_and_collect(state, queue):
     actions = {}
 
     while queue.pending():
-        # schedule the ship with most halite
         ship = queue.schedule(state)
-
         pos, hal = state.my_ships[ship]
 
-        # we want moves that are guaranteed not to collide with opponents
-        # and don't collide with our own ships
-        legal = state.legal_actions(ship)
-        no_self_col = [action for action in legal
-                       if not state.self_collision(ship, action)]
-        candidates = [action for action in no_self_col
-                      if not state.opp_collision(ship, action)]
+        # legal moves
+        nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
 
-        # is no such moves exists, revert to not colliding with our own ships
+        # no self collisions
+        no_self_col = [move for move in nnsew if not
+                       state.self_collision(ship, move)]
+
+        # no undesired opponent collisions
+        no_opp_col = [move for move in nnsew if not
+                      state.opp_collision(ship, move)]
+
+        # ideally consider moves that don't collide at all
+        candidates = list(set(no_self_col) & set(no_opp_col))
+
+        # if this is impossible, don't collide with opponent ships
+        if len(candidates) == 0:
+            candidates = no_opp_col
+
+        # if this is impossible, don't collide with own ships
         if len(candidates) == 0:
             candidates = no_self_col
 
-        # if this is still not possible, revert to legal moves
+        # if this is impossible, make a legal move
         if len(candidates) == 0:
-            candidates = legal
+            candidates = nnsew
 
         # we need halite ASAP so try to collect it if there is some
         # this can probably be improved...
         if None in candidates and state.halite_map[pos] > 0:
             action = None
+
         # otherwise go to site with most halite
         else:
             hal_after = lambda x: state.halite_map[state.newpos(pos, x)]
@@ -75,7 +84,6 @@ def spawn_maximum(state, queue):
     actions = {}
 
     while queue.pending():
-        # schedule the next yard
         yard = queue.schedule(state)
 
         # if spawning is legal, do it

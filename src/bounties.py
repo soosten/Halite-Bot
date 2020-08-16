@@ -78,7 +78,6 @@ class Bounties:
         # get the indices of the ships that are already targeted
         # if a ship is too close to a friendly yard, it will probably escape
         # so we remove such ships from the targets
-        # (note: & / | / ~ = and / or / not in numpy compatible way)
         target_bool = np.in1d(opp_ship_pos, prev) & (opp_ship_dis >= 3)
         target_inds = np.flatnonzero(target_bool)
 
@@ -145,13 +144,13 @@ class Bounties:
         should_attack = my_ships > max_opp_ships
 
         # at the end of the game we target yards no matter what
-        should_attack |= (state.total_steps - state.step) < YARD_HUNTING_FINAL
+        should_attack = should_attack or (state.total_steps - state.step) < YARD_HUNTING_FINAL
 
         # but stop attacking if we don't have a lot of ships anymore
-        should_attack &= my_ships >= YARD_HUNTING_MIN_SHIPS
+        should_attack = should_attack and my_ships >= YARD_HUNTING_MIN_SHIPS
 
         # at the beginning of the game we never target yards
-        should_attack &= state.step > YARD_HUNTING_START
+        should_attack = should_attack and state.step > YARD_HUNTING_START
 
         if should_attack:
             opp_yards, opp_ships = state.opp_data[closest][1:3]
