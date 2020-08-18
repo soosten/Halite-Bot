@@ -168,7 +168,7 @@ class Targets:
         hood_dists = self.distances[ship][0]
         dest_dists = hood_dists[:, site]
         dist_after = lambda move: dest_dists[self.nnsew.index(move)] \
-                   + (move is None) / 2
+                   + (move is None) / 2   # add * (no_cargo) flag???
         self.rankings[ship] = self.nnsew.copy()
         self.rankings[ship].sort(key=dist_after)
 

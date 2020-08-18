@@ -74,6 +74,8 @@ class State:
         # now construct a dict of lists with halite, yard positions, ship
         # positions, ship halite for each opponent as numpy arrays
         self.opp_data = {}
+        self.opp_scores = {}
+        self.opp_num_ships = {}
         for opp in self.opp_ids:
             halite, yards, ships = obs.players[opp]
             yard_pos = np.array(list(yards.values())).astype(int)
@@ -87,6 +89,9 @@ class State:
                 ship_hal = np.array([]).astype(int)
 
             self.opp_data[opp] = [halite, yard_pos, ship_pos, ship_hal]
+            self.opp_num_ships[opp] = ship_pos.size
+            alive = (ship_pos.size + yard_pos.size) > 0
+            self.opp_scores[opp] = alive * (halite + np.sum(ship_hal))
 
         return
 
@@ -212,13 +217,13 @@ class State:
 
         return collision
 
-    def opp_collision(self, ship, action, strict=True, yards=True):
+    def opp_collision(self, ship, action, strict=True):
         pos = self.my_ships[ship][0]
         npos = self.newpos(pos, action)
-        unsafe = self.unsafe_sites(ship, strict, yards)
+        unsafe = self.unsafe_sites(ship, strict)
         return unsafe[npos]
 
-    def unsafe_sites(self, ship, strict=True, yards=True):
+    def unsafe_sites(self, ship, strict=True):
         pos, hal = self.my_ships[ship]
 
         # can only go to sites with distance <= 1
@@ -227,18 +232,13 @@ class State:
         # find those ships that have less halite than we do
         # add 1 to hal if we want to have a strict halite comparison
         # since x < hal becomes x <= hal for integer values...
-        less_hal = self.opp_ship_pos[self.opp_ship_hal < (hal + strict)]
+        threats = self.opp_ship_pos[self.opp_ship_hal < (hal + strict)]
 
-        # hood is set of sites where ships with less cargo can be in one step
-        # regard our own shipyards as safe havens - this is not necessarily
-        # the case but many opponents will not want to run into the yard
-        # as this will cost them their ship too
-        if less_hal.size != 0:
-            hood = np.amin(self.dist[less_hal, :], axis=0) <= 1
-            hood &= ~np.in1d(self.sites, self.my_yard_pos)
-            unsafe |= hood
+        # set of sites where ships with less cargo can be in one step
+        if threats.size != 0:
+            unsafe |= (np.amin(self.dist[threats, :], axis=0) <= 1)
 
-        if yards:
-            unsafe |= np.in1d(self.sites, self.opp_yard_pos)
+        # opponent yards
+        unsafe |= np.in1d(self.sites, self.opp_yard_pos)
 
         return unsafe

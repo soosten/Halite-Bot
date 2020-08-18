@@ -85,7 +85,7 @@ class Bounties:
         # that are trapped (vulnerability > 1), have at least one hunter
         # nearby, and aren't too close to a friendly yard
         candidates = ~target_bool & (opp_ship_vul > 1)
-        candidates &= (opp_ship_dis >= 3) & (nearby >= 3)
+        candidates &= (opp_ship_dis >= 3) & (nearby >= 1)
 
         # we compute scores for each of the candidate ships indicating
         # the risk/reward of attacking them
@@ -117,7 +117,7 @@ class Bounties:
         # set position/halite/rewards for the targets
         self.ship_targets_pos = opp_ship_pos[target_inds]
         self.ship_targets_hal = opp_ship_hal[target_inds]
-        self.ship_targets_rew = 10000 * np.ones_like(self.ship_targets_pos)
+        self.ship_targets_rew = 1000 * np.ones_like(self.ship_targets_pos)
 
         # write the new targets in the ship_targets list
         self.ship_targets = [key for key, val in state.opp_ships.items()
@@ -126,48 +126,47 @@ class Bounties:
         return
 
     def set_yard_targets(self, state):
+        # always attack any yards that are too close to our own
+        if state.opp_yard_pos.size != 0:
+            inds = np.ix_(state.my_yard_pos, state.opp_yard_pos)
+            close = np.min(state.dist[inds], axis=0) <= OPP_YARD_DIST
+            self.yard_targets_pos = state.opp_yard_pos[close]
+
         # we target the opponent whose score is closest to ours
         my_score = state.my_halite + np.sum(state.my_ship_hal)
-        alive = lambda x: 0 < (state.opp_data[x][1].size
-                             + state.opp_data[x][2].size)
-        score = lambda x: alive(x) * (state.opp_data[x][0]
-                                    + np.sum(state.opp_data[x][3]))
-        score_diff = lambda x: np.abs(score(x) - my_score)
-        closest = min(state.opp_data, key=score_diff)
+        score_diff = lambda opp: abs(state.opp_scores[opp] - my_score)
+        closest = min(state.opp_scores, key=score_diff)
 
         # depending on how many ships we have compared to others
         my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
-        num_ships = lambda x: x[2].size
-        max_opp_ships = max([num_ships(x) for x in state.opp_data.values()])
+        max_opp_ships = max(state.opp_scores.values())
 
-        # for most of the game, we only target yards if we have the most ships
-        should_attack = my_ships > max_opp_ships
+        # attack yards at the end of the game
+        should_attack = (state.total_steps - state.step) < YARD_HUNTING_FINAL
 
-        # at the end of the game we target yards no matter what
-        should_attack = should_attack or (state.total_steps - state.step) < YARD_HUNTING_FINAL
+        # or if we have a lot of ships
+        should_attack = should_attack or my_ships > max_opp_ships
 
         # but stop attacking if we don't have a lot of ships anymore
         should_attack = should_attack and my_ships >= YARD_HUNTING_MIN_SHIPS
 
-        # at the beginning of the game we never target yards
+        # and don't attack if its too early in the game
         should_attack = should_attack and state.step > YARD_HUNTING_START
 
         if should_attack:
             opp_yards, opp_ships = state.opp_data[closest][1:3]
 
             # in the final stage of the game we target all yards
-            if state.total_steps - state.step < YARD_HUNTING_FINAL:
-                self.yard_targets_pos = opp_yards
             # before that we only target unprotected yards
-            else:
-                self.yard_targets_pos = np.setdiff1d(opp_yards, opp_ships)
+            if state.total_steps - state.step > YARD_HUNTING_FINAL:
+                opp_yards = np.setdiff1d(opp_yards, opp_ships)
 
-            # take 100 instead of 1000 here, so we prefer to target ships
-            # and big halite cells
-            self.yard_targets_rew = 1000 * np.ones_like(self.yard_targets_pos)
-        else:
-            self.yard_targets_pos = np.array([]).astype(int)
-            self.yard_targets_rew = np.array([]).astype(int)
+            self.yard_targets_pos = np.union1d(self.yard_targets_pos,
+                                               opp_yards)
+
+        # take 100 instead of 500 here, so we prefer to target ships
+        # and big halite cells
+        self.yard_targets_rew = 100 * np.ones_like(self.yard_targets_pos)
 
         return
 
@@ -199,7 +198,7 @@ class Bounties:
 
         # only hunt yards if we don't have any cargo or if its the
         # final phase of the game
-        if hal > 0 and not endgame:
+        if hal > 0:
             return np.array([]).astype(int), np.array([]).astype(int)
 
         # at the end of the game we want most ships to go after yards

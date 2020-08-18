@@ -17,6 +17,11 @@ def agent(obs, config):
     # survival (usually just the empty dictionary {})
     actions = survive(state, queue)
 
+    # later functions assume we have a yard, so return immediately
+    # if there are no more pending ships / yards
+    if not queue.pending():
+        return actions
+
     # decide if any ships should convert
     conversions(state, queue, actions)
 
@@ -45,7 +50,7 @@ def agent(obs, config):
 
         # put any ships on fifo yards back in the queue if
         # the action resulted in a new ship on a fifo yard
-        fifos.resolve(state, queue, actor, action)
+        fifos.resolve(state, queue)
 
         # write action into dictionary of actions to return
         if action is not None:

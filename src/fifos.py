@@ -35,32 +35,22 @@ class Fifos:
 
         return
 
-    def resolve(self, state, queue, actor, action):
-        # find out whether the action requires any fifo updates
-        if actor in state.my_yards and action == "SPAWN":
-            pos = state.my_yards[actor]
-        elif actor in state.my_ships:
-            pos = state.my_ships[actor][0]
-        else:
-            pos = -1
+    def resolve(self, state, queue):
+        # fifo ships that need to move
+        res_pos = [pos for pos in self.stripped if state.moved_this_turn[pos]]
 
-        ship, moves = self.stripped.pop(pos, [None, None])
+        for pos in res_pos:
+            # move fifo ship from stripped into the queue
+            ship, moves = self.stripped.pop(pos)
+            queue.ships[ship] = moves
 
-        # if ship is None, the actor was not on a fifo position or a
-        # yard that didn't spawn so nothing to do here
-        if ship is None:
-            return
-
-        # otherwise insert the new ship into the queue
-        queue.ships[ship] = moves
-
-        # we choose a destination that has not yet been selected by the
-        # optimal assignment algorithm for the non-fifo ships
-        targets.ship_list.append(ship)
-        targets.distances[ship] = targets.calc_distances(ship, state)
-        rewards = targets.calc_rewards(ship, state, return_appended=False)
-        taken = np.array(list(targets.destinations.values())).astype(int)
-        rewards[taken] = 0
-        targets.add_destination(ship, rewards.argmax(), rewards.max())
+            # we choose a destination that has not yet been selected by the
+            # optimal assignment algorithm for the non-fifo ships
+            targets.ship_list.append(ship)
+            targets.distances[ship] = targets.calc_distances(ship, state)
+            rewards = targets.calc_rewards(ship, state, return_appended=False)
+            taken = np.array(list(targets.destinations.values())).astype(int)
+            rewards[taken] = 0
+            targets.add_destination(ship, rewards.argmax(), rewards.max())
 
         return

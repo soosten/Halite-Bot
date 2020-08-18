@@ -13,18 +13,10 @@ class Queue:
         cargo = lambda ship: state.my_ships[ship][1]
         self.empty = {ship for ship in self.ships if cargo(ship) == 0}
 
-        # default priority function
-        self.value = lambda ship: targets.values.get(ship, 0)
-
-        # we can compute the priorities of yards right away
-        # we want to spawn first a yard that are in "contested" areas
-        # where there are lots of opponent ships. we give highest
-        # priority to those that have a ship right next to them
-        self.yards = {}
-        for yard, pos in state.my_yards.items():
-            dist1 = np.sum(state.dist[pos, state.opp_ship_pos] <= 1)
-            dist4 = np.sum(state.dist[pos, state.opp_ship_pos] <= 4)
-            self.yards[yard] = 100 * dist1 + dist4
+        # we can compute the priorities of yards right away we want to spawn
+        # first at yards in "contested" areas with lots of opponent ships
+        self.yards = {yard: np.sum(state.dist[pos, state.opp_ship_pos] <= 4)
+                      for yard, pos in state.my_yards.items()}
 
         return
 
@@ -37,6 +29,9 @@ class Queue:
         self.hunted.discard(actor)
         self.empty.discard(actor)
         return
+
+    def value(self, ship):
+        return targets.values.get(ship, 0)
 
     def schedule(self, state):
         # update the non-colliding moves for each ship

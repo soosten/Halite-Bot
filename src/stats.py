@@ -28,13 +28,13 @@ class Stats:
         self.state = deepcopy(argstate)
 
         # update how many ships/yards we lost
-        self.count_actors()
+        self.count()
 
         # save the current state as the previous state
         self.last_state = self.state
         return
 
-    def count_actors(self):
+    def count(self):
         # get ship/yard ids from last step and present step count how many
         # new ones we built and how many were destroyed
         last_yards = set(self.last_state.my_yards)
@@ -89,5 +89,4 @@ class Stats:
         print(f"  Yards lost: {self.yards_lost}")
         print(f"  Total halite: {mined}")
         print(f"  Average time per step: {avg_time} seconds\n")
-
         return

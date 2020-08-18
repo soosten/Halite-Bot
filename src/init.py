@@ -1,43 +1,31 @@
-# parameters for graph weighting
-# ships contribute weights in the space they control (which is the
-# ball of radius 1 or 2 around their position). sites controlled by
-# multiple ships should get higher weights
-# heuristic: going "through a site" usually takes two steps. if you
-# to go "around the site" while staying 1 step away it takes 4 steps
-# so the weight should be > 4/2 = 2
+# graph weights
 MY_WEIGHT = 1
 MY_RADIUS = 1
-
-# going "through 3 sites" usually takes 4 steps. if you want to go
-# want "around the 3 sites" while staying 2 steps from the middle, it
-# takes 8 steps so the weight should be > 8/4 = 2. but we want to be
-# very scared of opponent ships so we set this to 4
 OPP_WEIGHT = 4
 OPP_RADIUS = 2
-
 HUNT_WEIGHT = 4
 HUNT_RADIUS = 3
 
-# parameters for conversion and spawning
+# conversion and spawning
 YARD_DIST = 6
-OPP_YARD_DIST = 3
+OPP_YARD_DIST = 5
 YARD_RADIUS = 4
 MIN_CELLS = 15
-YARD_SCHEDULE = np.array([0, 8])
-YARD_MAX_STEP = 200
+YARD_SCHEDULE = np.array([0, 10, 40])
+YARD_MAX_STEP = 300
 FIFO_MODE = True
 MAX_SHIPS = 70
 MIN_SHIPS = 15
-SPAWNING_STEP = 100
+SPAWNING_STEP = 250
 SPAWNING_OFFSET = 5
-STEPS_FINAL = 50  # no conversions of spawns with this many steps left
+STEPS_FINAL = 50  # no conversions or spawns with this many steps left
 
-# parameters for setting bounties and hunters
+# bounties and hunting
 SHIPS_PER_BOUNTY = 6
 HUNTING_MAX_RATIO = 0.33
-HUNTING_STEP = 150
-YARD_HUNTING_START = 330
-YARD_HUNTING_FINAL = 30
+HUNTING_STEP = 50
+YARD_HUNTING_START = 300
+YARD_HUNTING_FINAL = 50
 YARD_HUNTING_MIN_SHIPS = 10
 YARD_HUNTING_RADIUS = 6
 MIN_MINING_HALITE = 0
@@ -54,7 +42,7 @@ BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
 BASELINE_YARD_RATE = 0.02  # tendency to go to yard / mine for less time
 
 # print how long each step took?
-PRINT_STEP_TIMES = True
+PRINT_STEP_TIMES = False
 
 # intialize global strategy objects we keep throughout the episode
 stats = Stats()

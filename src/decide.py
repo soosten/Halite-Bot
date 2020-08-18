@@ -2,9 +2,9 @@ def decide(state, actor):
     # if the actor is a ship, we choose the move with the highest
     # ranking among those that don't result in unfavorable collisions
     if actor in state.my_ships:
-        destination = targets.destinations[actor]
+        dest = targets.destinations[actor]
         ranking = targets.rankings[actor]
-        candidates = filter_moves(actor, state, destination)
+        candidates = filter_moves(actor, state, dest)
         decision = min(candidates, key=lambda move: ranking.index(move))
 
     # if the actor is a yard, we check whether we should spawn or not
@@ -18,6 +18,8 @@ def should_spawn(state, yard=None):
     # my number of ships (not counting fifo) and score = halite + cargo
     my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
     my_score = state.my_halite + np.sum(state.my_ship_hal)
+    max_opp_ships = max(state.opp_num_ships.values())
+    max_opp_score = max(state.opp_scores.values())
 
     # check for some special scenarios in which we should not spawn
     if yard is not None:
@@ -31,23 +33,9 @@ def should_spawn(state, yard=None):
             return False
 
     # if we already have enough ships
-    if my_ships >= MAX_SHIPS:
+    enough = MAX_SHIPS if state.total_steps - state.step > STEPS_FINAL else 5
+    if my_ships >= enough:
         return False
-
-    # if its the end of the game and we have a few ships still
-    endgame = state.total_steps - state.step < STEPS_FINAL
-    if endgame and my_ships >= 5:
-        return False
-
-    # otherwise the rule is that we spawn in any of the following cases:
-    # we have less ships than the opponents, we are leading by a lot,
-    # there are still many steps left in the game
-    # determine the opponent scores and number of ships
-    num_ships = lambda opp: opp[2].size
-    alive = lambda opp: (opp[1].size + opp[2].size) > 0
-    score = lambda opp: alive(opp) * (opp[0] + np.sum(opp[3]))
-    max_opp_ships = max([num_ships(opp) for opp in state.opp_data.values()])
-    max_opp_score = max([score(opp) for opp in state.opp_data.values()])
 
     # spawn if we there is a lot of time left
     spawn = state.step < SPAWNING_STEP
@@ -77,17 +65,12 @@ def should_spawn(state, yard=None):
     return spawn
 
 
-def filter_moves(ship, state, destination):
+def filter_moves(ship, state, dest):
     pos, hal = state.my_ships[ship]
 
     # there are some situations where None is not a good move and
     # we would prefer to remove it from candidates if possible
     none_flag = False
-
-    # determine what yards parameter to pass to opp_collision. if our final
-    # destination is to destroy a shipyard, we don't check for collision with
-    # enemy shipyards
-    not_attacking = (destination not in state.opp_yard_pos)
 
     # legal moves
     nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
@@ -95,10 +78,23 @@ def filter_moves(ship, state, destination):
     # no self collisions
     no_self_col = [move for move in nnsew if not
                    state.self_collision(ship, move)]
-
     # no undesired opponent collisions
     no_opp_col = [move for move in nnsew if not
-                  state.opp_collision(ship, move, yards=not_attacking)]
+                  state.opp_collision(ship, move)]
+
+    # turn off self collision checking if we are depositing at the end
+    if state.total_steps - state.step < STEPS_SPIKE:
+        yard_ind = np.argmin(state.dist[state.my_yard_pos, pos], axis=0)
+        yard = state.my_yard_pos[yard_ind]
+        close = state.dist[yard, pos] <= 3
+        traffic = np.sum(state.dist[state.my_ship_pos, yard] <= 4) >= 10
+        if traffic and close:
+            no_self_col = nnsew
+
+    # turn off opponent collision checking if we are hunting a yard
+    # and are close enough to strike
+    if (dest in state.opp_yard_pos) and (state.dist[pos, dest] <= 2):
+        no_opp_col = nnsew
 
     # ideally consider moves that don't collide at all
     candidates = list(set(no_self_col) & set(no_opp_col))
@@ -120,10 +116,10 @@ def filter_moves(ship, state, destination):
     # don't cause unnecessary traffic at yards
     none_flag = none_flag or (pos in state.my_yard_pos)
 
-    # don't pick up unwanted cargo that makes us vulnerable
-    no_cargo = (pos != destination)
+    # don't pick up unwanted cargo that makes ships vulnerable
+    no_cargo = (pos != dest)
     no_cargo = no_cargo and (state.halite_map[pos] > 0)
-    no_cargo = no_cargo and (destination not in state.my_yard_pos)
+    no_cargo = no_cargo and (dest not in state.my_yard_pos)
     none_flag = none_flag or no_cargo
 
     if none_flag and (None in candidates) and (len(candidates) >= 2):
