@@ -131,6 +131,8 @@ class Bounties:
             inds = np.ix_(state.my_yard_pos, state.opp_yard_pos)
             close = np.min(state.dist[inds], axis=0) <= OPP_YARD_DIST
             self.yard_targets_pos = state.opp_yard_pos[close]
+        else:
+            self.yard_targets_pos = np.array([]).astype(int)
 
         # we target the opponent whose score is closest to ours
         my_score = state.my_halite + np.sum(state.my_ship_hal)
