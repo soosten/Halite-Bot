@@ -33,7 +33,7 @@ def should_spawn(state, yard=None):
             return False
 
     # if we already have enough ships
-    enough = MAX_SHIPS if state.total_steps - state.step > STEPS_FINAL else 5
+    enough = MAX_SHIPS if (state.total_steps - state.step) > STEPS_FINAL else 5
     if my_ships >= enough:
         return False
 
@@ -78,6 +78,7 @@ def filter_moves(ship, state, dest):
     # no self collisions
     no_self_col = [move for move in nnsew if not
                    state.self_collision(ship, move)]
+
     # no undesired opponent collisions
     no_opp_col = [move for move in nnsew if not
                   state.opp_collision(ship, move)]
@@ -112,9 +113,6 @@ def filter_moves(ship, state, dest):
     # if this is impossible, make a legal move
     if len(candidates) == 0:
         candidates = nnsew
-
-    # don't cause unnecessary traffic at yards
-    none_flag = none_flag or (pos in state.my_yard_pos)
 
     # don't pick up unwanted cargo that makes ships vulnerable
     no_cargo = (pos != dest)

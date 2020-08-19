@@ -164,9 +164,9 @@ class Bounties:
             self.yard_targets_pos = np.union1d(self.yard_targets_pos,
                                                opp_yards)
 
-        # take 100 instead of 500 here, so we prefer to target ships
+        # take 200 instead of 1000 here, so we prefer to target ships
         # and big halite cells
-        self.yard_targets_rew = 100 * np.ones_like(self.yard_targets_pos)
+        self.yard_targets_rew = 200 * np.ones_like(self.yard_targets_pos)
 
         return
 
@@ -174,23 +174,37 @@ class Bounties:
         pos, hal = state.my_ships[actor]
 
         # find targets that we can attack
-        inds = np.flatnonzero(self.ship_targets_hal > hal)
+        attackable = self.ship_targets_hal > hal
+        targets = self.ship_targets_pos[attackable]
+        rewards = self.ship_targets_rew[attackable]
 
-        positions = np.array([]).astype(int)
-        rewards = np.array([]).astype(int)
+        # add any opponent ships too close to our yards if we are also
+        # in the area
+        # dist = state.dist[np.ix_(state.my_yard_pos, state.opp_ship_pos)]
+        # attack = (np.amin(dist, axis=0) <= 2) & (state.opp_ship_hal >= hal)
+        # attack &= (state.dist[pos, state.opp_ship_pos] <= 3)
+        # new_targets = state.opp_ship_pos[attack]
+        # targets = np.append(targets, new_targets)
+        # rewards = np.append(rewards, 1000 * np.ones_like(new_targets))
+
+        full_pos = np.array([]).astype(int)
+        full_rew = np.array([]).astype(int)
 
         # we put slightly lower bounties on the 4 sites adjacent to
         # the ship as well so that ships collapse on the target
-        for pos, rew in zip(self.ship_targets_pos[inds],
-                            self.ship_targets_rew[inds]):
+        for pos, rew in zip(targets, rewards):
             adj = np.flatnonzero(state.dist[pos, :] == 1)
             adj_rewards = (rew / 2) * np.ones_like(adj)
-            positions = np.append(positions, adj)
-            positions = np.append(positions, pos)
-            rewards = np.append(rewards, adj_rewards)
-            rewards = np.append(rewards, rew)
+            full_pos = np.append(full_pos, adj)
+            full_pos = np.append(full_pos, pos)
+            full_rew = np.append(full_rew, adj_rewards)
+            full_rew = np.append(full_rew, rew)
 
-        return positions, rewards
+        # remove any duplicate indices and rewards
+        full_pos, inds = np.unique(full_pos, return_index=True)
+        full_rew = full_rew[inds]
+
+        return full_pos, full_rew
 
     def get_yard_targets(self, actor, state):
         pos, hal = state.my_ships[actor]

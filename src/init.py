@@ -11,7 +11,7 @@ YARD_DIST = 6
 OPP_YARD_DIST = 5
 YARD_RADIUS = 4
 MIN_CELLS = 15
-YARD_SCHEDULE = np.array([0, 10, 40])
+YARD_SCHEDULE = np.array([0, 9, 40])
 YARD_MAX_STEP = 300
 FIFO_MODE = True
 MAX_SHIPS = 70
@@ -31,8 +31,8 @@ YARD_HUNTING_RADIUS = 6
 MIN_MINING_HALITE = 0
 
 # rate options
-STEPS_SPIKE = 30  # steps remaining before spike is added
-SPIKE_PREMIUM = 0.8  # spike to deposit everything at the end
+STEPS_SPIKE = 25  # steps remaining before spike is added
+SPIKE_PREMIUM = 0.5  # spike to deposit everything at the end
 RISK_RADIUS = 10
 RISK_PREMIUM = 0.02  # gets added for each threat within radius RISK_RADIUS
 STEPS_INITIAL = 50  # don't add risk before this step
