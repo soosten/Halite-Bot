@@ -42,7 +42,7 @@ BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
 BASELINE_YARD_RATE = 0.02  # tendency to go to yard / mine for less time
 
 # print how long each step took?
-PRINT_STEP_TIMES = False
+PRINT_STEP_TIMES = True
 
 # intialize global strategy objects we keep throughout the episode
 stats = Stats()

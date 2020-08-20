@@ -79,9 +79,13 @@ def filter_moves(ship, state, dest):
     no_self_col = [move for move in nnsew if not
                    state.self_collision(ship, move)]
 
-    # no undesired opponent collisions
+    # no undesired opponent collisions - check strictly if the ship has
+    # cargo or is far from the yard. hopefully, this will make ships less
+    # locked down if some attackers are waiting in front of our yard
+    strict = np.amin(state.dist[state.my_yard_pos, pos], axis=0) > 2
+    strict = strict or (hal > 0)
     no_opp_col = [move for move in nnsew if not
-                  state.opp_collision(ship, move)]
+                  state.opp_collision(ship, move, strict)]
 
     # turn off self collision checking if we are depositing at the end
     if state.total_steps - state.step < STEPS_SPIKE:

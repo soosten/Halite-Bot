@@ -198,10 +198,17 @@ class State:
 
     def self_collision(self, actor, action):
         if actor in self.my_yards:
-            # shipyards only give collisions if we spawn a ship after moving
-            # a ship there previously
+            # see if there is a ship that cannot move on the yard
             pos = self.my_yards[actor]
-            collision = (action == "SPAWN") and self.moved_this_turn[pos]
+            collision = self.moved_this_turn[pos]
+
+            # check for a fifo ship that may be left with no moves
+            if pos in fifos.stripped:
+                occupied = self.moved_this_turn[self.dist[pos, :] == 1]
+                collision = collision or np.sum(~occupied) == 0
+
+            # can only cause a collision if we spawn
+            collision = collision and (action == "SPAWN")
 
         if actor in self.my_ships:
             pos, hal = self.my_ships[actor]

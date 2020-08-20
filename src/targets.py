@@ -171,7 +171,6 @@ class Targets:
                    + (move is None) / 2   # add * (no_cargo) flag???
         self.rankings[ship] = self.nnsew.copy()
         self.rankings[ship].sort(key=dist_after)
-
         return
 
     def calc_distances(self, ship, state):

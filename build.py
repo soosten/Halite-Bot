@@ -1,43 +1,49 @@
 #!/usr/bin/python
 
-from os import listdir
+import os
+import subprocess
 from shutil import copyfileobj
 from kaggle_environments import make
 
 
 def main():
     # path to repository from working directory
-    PATH = "./"
+    path = os.curdir
 
     # write the source files into a file submission.py with the right format
-    write(PATH)
+    write(path)
+    submission = os.path.join(path, "submission.py")
 
     # can play with 1, 2, or 4 players. None is the idle agent, "random" is
-    # the built-in random agent, or one can specify agents by filename, i.e.
-    # agents = [PATH + "submission.py"]
-    # agents = ["./otheragent.py", PATH + "submission.py"]
-    # agents = ["random", PATH + "submission.py", "random", None]
-    # this is the "validation episode" run by kaggle:
-    agents = [PATH + "submission.py", PATH + "submission.py",
-              PATH + "submission.py", PATH + "submission.py"]
+    # the built-in random agent, or one can specify agents by filename:
+    # agents = [submission]
+    # agents = ["otheragent.py", submission]
+    # agents = ["random", submission, "random", None]
+    agents = [submission, submission, submission, submission]
 
     # run the simulation - random seed and number of steps are optional
-    run(PATH, agents, steps=400, seed=1)
+    run(path, agents, steps=400, seed=42)
+
+    # uncomment to upload submission.py to kaggle competition
+    # assumes kaggle CLI is installed with proper credentials
+    submit(path, "insert description of upload here")
 
     print("\nDone.")
     return
 
 
-def write(PATH):
-    # list of files in PATH/src/ that are not system files
-    src = [name for name in listdir(PATH + "src/") if name[0] != "."]
+def write(path):
+    # get files in path/src/ that are not system files
+    src_path = os.path.join(path, "src")
+    with os.scandir(src_path) as src_dir:
+        src_files = [file.name for file in src_dir if file.is_file()
+                     and not file.name.startswith('.')]
 
     # check if agent.py, init.py, and imports.py exist and remove them
     try:
-        src.remove("agent.py")
-        src.remove("init.py")
-        src.remove("imports.py")
-
+        src_files.remove("agent.py")
+        src_files.remove("init.py")
+        src_files.remove("imports.py")
     except ValueError:
         print("Error: /src/ directory must contain agent.py, "
               + "imports.py, and init.py")
@@ -45,36 +51,37 @@ def write(PATH):
 
     # write the files in lexicographical order so its easier to
     # scroll to them in the combined file
-    src.sort()
+    src_files.sort()
 
-    # write imports.py, then all files in PATH/src/, then init.py,
+    # write imports.py, then all files in path/src/, then init.py,
     # and finally agent.py into submission.py
     print("Writing files...")
-    with open(PATH + "submission.py", "w") as submission:
+    sub_path = os.path.join(path, "submission.py")
+    with open(sub_path, "w") as sub_file:
         print("  imports.py")
-        with open(PATH + "src/imports.py", "r") as file:
-            copyfileobj(file, submission)
-        submission.write("\n\n")
+        with open(os.path.join(src_path, "imports.py"), "r") as file:
+            copyfileobj(file, sub_file)
+        sub_file.write("\n\n")
 
-        for name in src:
+        for name in src_files:
             print("  " + name)
-            with open(PATH + "src/" + name, "r") as file:
-                copyfileobj(file, submission)
-            submission.write("\n\n")
+            with open(os.path.join(src_path, name), "r") as file:
+                copyfileobj(file, sub_file)
+            sub_file.write("\n\n")
 
         print("  init.py")
-        with open(PATH + "src/init.py", "r") as file:
-            copyfileobj(file, submission)
-            submission.write("\n\n")
+        with open(os.path.join(src_path, "init.py"), "r") as file:
+            copyfileobj(file, sub_file)
+        sub_file.write("\n\n")
 
         print("  agent.py")
-        with open(PATH + "src/agent.py", "r") as file:
-            copyfileobj(file, submission)
+        with open(os.path.join(src_path, "agent.py"), "r") as file:
+            copyfileobj(file, sub_file)
 
     return
 
 
-def run(PATH, agents, steps=400, seed=None):
+def run(path, agents, steps=400, seed=None):
     # get a halite simulator from kaggle environments
     if seed is not None:
         print(f"\nRunning for {steps} steps with seed = {seed}...\n\n")
@@ -90,9 +97,24 @@ def run(PATH, agents, steps=400, seed=None):
     # write the output video to simulation.html
     print("\nRendering episode...")
     out = env.render(mode="html", width=800, height=600)
-    with open(PATH + "simulation.html", "w") as file:
+    simulation = os.path.join(path, "simulation.html")
+    with open(simulation, "w") as file:
         file.write(out)
 
+    return
+
+
+def submit(path, description):
+    # double check whether we want to submit the agent
+    if "yes" != input("Are you sure you want to submit? [yes/no] "):
+        print("\nNot uploaded.")
+        return
+
+    # if yes upload using the kaggle command line tool
+    submission = os.path.join(path, "submission.py")
+    cmd = "kaggle competitions submit -q -c halite -f ".split()
+    cmd.extend((submission, " -m", description))
+    subprocess.run(cmd)
     return
 
 
