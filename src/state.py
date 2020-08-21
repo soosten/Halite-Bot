@@ -205,7 +205,7 @@ class State:
             # check for a fifo ship that may be left with no moves
             if pos in fifos.stripped:
                 occupied = self.moved_this_turn[self.dist[pos, :] == 1]
-                collision = collision or np.sum(~occupied) == 0
+                collision = collision or (np.sum(~occupied) == 0)
 
             # can only cause a collision if we spawn
             collision = collision and (action == "SPAWN")

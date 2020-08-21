@@ -35,15 +35,13 @@ def main():
 def write(path):
     # get files in path/src/ that are not system files
     src_path = os.path.join(path, "src")
-    with os.scandir(src_path) as src_dir:
-        src_files = [file.name for file in src_dir if file.is_file()
-                     and not file.name.startswith('.')]
+    files = [name for name in os.listdir(src_path) if name.endswith(".py")]
 
     # check if agent.py, init.py, and imports.py exist and remove them
     try:
-        src_files.remove("agent.py")
-        src_files.remove("init.py")
-        src_files.remove("imports.py")
+        files.remove("agent.py")
+        files.remove("init.py")
+        files.remove("imports.py")
     except ValueError:
         print("Error: /src/ directory must contain agent.py, "
               + "imports.py, and init.py")
@@ -51,19 +49,18 @@ def write(path):
 
     # write the files in lexicographical order so its easier to
     # scroll to them in the combined file
-    src_files.sort()
+    files.sort()
 
     # write imports.py, then all files in path/src/, then init.py,
     # and finally agent.py into submission.py
     print("Writing files...")
-    sub_path = os.path.join(path, "submission.py")
-    with open(sub_path, "w") as sub_file:
+    with open(os.path.join(path, "submission.py"), "w") as sub_file:
         print("  imports.py")
         with open(os.path.join(src_path, "imports.py"), "r") as file:
             copyfileobj(file, sub_file)
         sub_file.write("\n\n")
 
-        for name in src_files:
+        for name in files:
             print("  " + name)
             with open(os.path.join(src_path, name), "r") as file:
                 copyfileobj(file, sub_file)
@@ -112,8 +109,8 @@ def submit(path, description):
 
     # if yes upload using the kaggle command line tool
     submission = os.path.join(path, "submission.py")
-    cmd = "kaggle competitions submit -q -c halite -f ".split()
-    cmd.extend((submission, " -m", description))
+    cmd = "kaggle competitions submit -q -c halite -f".split()
+    cmd.extend((submission, "-m", description))
     subprocess.run(cmd)
     return
 
