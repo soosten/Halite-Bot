@@ -13,11 +13,12 @@ The bot depends only on standard libraries and the SciPy stack. However, the scr
 
 
 ### Build
-The script `build.py` has code to build a valid submission, play locally against other bots or the built-in agents, and upload the submission to the Kaggle competition. It creates a file `simulation.html`, which contains a video rendering of the episode.
+The script `build.py` has functions to build a valid submission, play locally against other user-supplied bots or built-in agents, and upload the submission to the Kaggle competition. It creates a file `simulation.html`, which contains a video rendering of the episode.
 
 
 ### Main components of the strategy
 todo
+wiki dijkstra, hungarian
 
 
 ### Overview of the code

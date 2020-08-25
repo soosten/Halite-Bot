@@ -1,14 +1,55 @@
 class Targets:
-    def __init__(self):
+    def __init__(self, state, actions, bounties):
         self.nnsew = [None, "NORTH", "SOUTH", "EAST", "WEST"]
 
-        self.ship_list = []
         self.num_ships = 0
 
         self.distances = {}
         self.destinations = {}
         self.values = {}
         self.rankings = {}
+
+        # list of ships -  indices of ships in matrices and arrays
+        # will be the index in this list
+        self.num_ships = len(actions.ships)
+
+        # if there are no ships, there is nothing to do
+        if self.num_ships == 0:
+            return
+
+        # calculate distances on the relevant weighted graphs
+        self.distances = {ship: self.calc_distances(ship, state)
+                          for ship in actions.ships}
+
+        # the optimal assignment will assign only one ship to each site
+        # but we want more than one ship to go back to each yard so
+        # we add duplicates of the yards to the rewards to ensure this
+        self.duplicates = np.tile(state.my_yard_pos, self.num_ships - 1)
+        self.ind_to_site = np.append(self.duplicates, state.sites)
+
+        # calculate the value per step of going to a specific site
+        cost_matrix = np.vstack([self.calc_rewards(ship, state, bounties)
+                                 for ship in actions.ships])
+
+        # find the optimal assignment of ships to destinations
+        # the optimal assignment assignment assigns ship_inds[i] to
+        # site_inds[i]
+        ship_inds, site_inds = assignment(cost_matrix, maximize=True)
+
+        # go through the solution of the optimal assignment problem and
+        # extract destinations, values, and move ranking functions
+        # for each ship
+        self.destinations = {}
+        self.values = {}
+        self.rankings = {}
+
+        for ship_ind, site_ind in zip(ship_inds, site_inds):
+            # convert indices into ships, sites, and values and
+            # add the destination
+            site = self.ind_to_site[site_ind]
+            ship = actions.ships[ship_ind]
+            value = cost_matrix[ship_ind, site_ind]
+            self.add_destination(ship, site, value)
 
         return
 
@@ -27,11 +68,11 @@ class Targets:
         SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
 
         # add a premium if we need to spawn but don't have halite
-        spawn = state.my_halite < state.config.spawnCost
-        spawn = spawn and should_spawn(state)
-        spawn = spawn and state.step > SPAWN_PREMIUM_STEP
-        SR += SPAWN_PREMIUM * spawn
-        YR += SPAWN_PREMIUM * spawn
+        # spawn = state.my_halite < state.config.spawnCost
+        # spawn = spawn and should_spawn(state)
+        # spawn = spawn and state.step > SPAWN_PREMIUM_STEP
+        # SR += SPAWN_PREMIUM * spawn
+        # YR += SPAWN_PREMIUM * spawn
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:
@@ -49,53 +90,7 @@ class Targets:
 
         return SR, YR, HR
 
-    def update(self, state, queue):
-        # if there are no ships, there is nothing to do
-        if len(queue.ships) == 0:
-            return
-
-        # list of ships -  indices of ships in matrices and arrays
-        # will be the index in this list
-        self.ship_list = list(queue.ships.keys())
-        self.num_ships = len(self.ship_list)
-
-        # calculate distances on the relevant weighted graphs
-        self.distances = {ship: self.calc_distances(ship, state)
-                          for ship in self.ship_list}
-
-        # the optimal assignment will assign only one ship to each site
-        # but we want more than one ship to go back to each yard so
-        # we add duplicates of the yards to the rewards to ensure this
-        self.duplicates = np.tile(state.my_yard_pos, self.num_ships - 1)
-        self.ind_to_site = np.append(self.duplicates, state.sites)
-
-        # calculate the value per step of going to a specific site
-        cost_matrix = np.vstack([self.calc_rewards(ship, state)
-                                 for ship in self.ship_list])
-
-        # find the optimal assignment of ships to destinations
-        # the optimal assignment assignment assigns ship_inds[i] to
-        # site_inds[i]
-        ship_inds, site_inds = assignment(cost_matrix, maximize=True)
-
-        # go through the solution of the optimal assignment problem and
-        # extract destinations, values, and move ranking functions
-        # for each ship
-        self.destinations = {}
-        self.values = {}
-        self.rankings = {}
-
-        for ship_ind, site_ind in zip(ship_inds, site_inds):
-            # convert indices into ships, sites, and values and
-            # add the destination
-            site = self.ind_to_site[site_ind]
-            ship = self.ship_list[ship_ind]
-            value = cost_matrix[ship_ind, site_ind]
-            self.add_destination(ship, site, value)
-
-        return
-
-    def calc_rewards(self, ship, state, return_appended=True):
+    def calc_rewards(self, ship, state, bounties):
         reward_map = np.zeros_like(state.halite_map)
 
         hood_dists, yard_dists = self.distances[ship]
@@ -148,14 +143,11 @@ class Targets:
         discount = (1 + HR) ** ship_dists[yard_hunt_pos]
         reward_map[yard_hunt_pos] = yard_hunt_rew / discount
 
-        if return_appended:
-            # copy the ship yard rewards onto the duplicate ship yards and
-            # append the duplicate rewards
-            yard_rewards = reward_map[state.my_yard_pos]
-            duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
-            return np.append(duplicate_rewards, reward_map)
-        else:
-            return reward_map
+        # copy the ship yard rewards onto the duplicate ship yards and
+        # append the duplicate rewards
+        yard_rewards = reward_map[state.my_yard_pos]
+        duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
+        return np.append(duplicate_rewards, reward_map)
 
     def add_destination(self, ship, site, value):
         # store site and value
@@ -188,7 +180,11 @@ class Targets:
         hood_dists = dijkstra(graph, indices=hood)
 
         # calculate the distances from all sites to nearest yard
-        yard_dists = dijkstra(graph, indices=state.my_yard_pos, min_only=True)
+        if state.my_yard_pos.size != 0:
+            yard_dists = dijkstra(graph, indices=state.my_yard_pos,
+                                  min_only=True)
+        else:
+            yard_dists = state.map_size * np.ones_like(weights)
 
         # store hood distances and yard distances for later
         return hood_dists, yard_dists
@@ -200,7 +196,8 @@ class Targets:
         # ignore immediate neighbors in the friendly weights - this is handled
         # automatically and the weights can cause traffic jams at close range
         # also ignore weights of any ships on fifo yards
-        friendly = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos)
+        # friendly = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos)
+        friendly = state.my_ship_pos
         friendly = friendly[state.dist[pos, friendly] > 1]
         if friendly.size != 0:
             hood = state.dist[friendly, :] <= MY_RADIUS
@@ -213,8 +210,7 @@ class Targets:
             weights += OPP_WEIGHT * np.sum(hood, axis=0)
 
         # also need to go around enemy shipyards
-        if state.opp_yard_pos.size != 0:
-            weights[state.opp_yard_pos] += OPP_WEIGHT
+        weights[state.opp_yard_pos] += OPP_WEIGHT
 
         # remove any weights on the yards so these don't get blocked
         weights[state.my_yard_pos] = 0

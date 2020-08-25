@@ -26,7 +26,7 @@ def main():
 
     # uncomment to upload submission.py to kaggle competition
     # assumes kaggle CLI is installed with proper credentials
-    submit(path, "insert description of upload here")
+    # submit(path, "#53 - ")
 
     print("\nDone.")
     return
@@ -108,10 +108,12 @@ def submit(path, description):
         return
 
     # if yes upload using the kaggle command line tool
+    print("")
     submission = os.path.join(path, "submission.py")
     cmd = "kaggle competitions submit -q -c halite -f".split()
     cmd.extend((submission, "-m", description))
     subprocess.run(cmd)
+    print("")
     return
 
 

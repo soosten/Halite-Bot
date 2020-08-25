@@ -14,7 +14,6 @@ MIN_CELLS = 15
 YARD_SCHEDULE = np.array([0, 9, 40])
 YARD_MAX_STEP = 300
 FIFO_MODE = True
-MAX_SHIPS = 70
 MIN_SHIPS = 15
 SPAWNING_STEP = 250
 SPAWNING_OFFSET = 5
@@ -42,10 +41,7 @@ BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
 BASELINE_YARD_RATE = 0.02  # tendency to go to yard / mine for less time
 
 # print how long each step took?
-PRINT_STEP_TIMES = False
+PRINT_STEP_TIMES = True
 
-# intialize global strategy objects we keep throughout the episode
-stats = Stats()
-bounties = Bounties()
-fifos = Fifos()
-targets = Targets()
+# intialize global memory objects to keep track of things between steps
+memory = Memory()

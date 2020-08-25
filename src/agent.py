@@ -1,72 +1,41 @@
 def agent(obs, config):
-    # keep track of time spent
+    # keep track of time spent during step
     tick = time()
 
-    # internal game state, to be updated as we decide on actions
+    # parse (obs, config) into internal game state
     state = State(obs, config)
 
-    # update the global statistics we track across all turns
-    stats.update(state)
+    # update the statistics we track across all turns
+    memory.statistics(state)
 
-    # list of ships/yards for which we need to decide on an action
-    queue = Queue(state)
+    # initialize actions object
+    actions = Actions(state)
 
-    # as we decide on actions for our ships/yards we write them into the
-    # actions dictionary, which is what is returned to the environment
-    # we initialize actions with the minimal actions needed to ensure
-    # survival (usually just the empty dictionary {})
-    actions = survive(state, queue)
+    # convert appropriate ships into yards
+    convert(state, actions)
 
-    # later functions assume we have a yard, so return immediately
-    # if there are no more pending ships / yards
-    if not queue.pending():
-        return actions
+    # determine which yards should spawn
+    spawns = Spawns(state, actions)
 
-    # decide if any ships should convert
-    conversions(state, queue, actions)
-
-    # update which yards should operate under fifo system
-    # and strip any ships on fifo yards from the queue
-    fifos.update(state)
-    fifos.strip(state, queue)
-
-    # update any special targets for our ships such as opponent
-    # ships/yards that should be targeted by our hunters
-    bounties.update(state)
+    # place bounties on selected opponent ships/yards
+    bounties = Bounties(state)
 
     # set preferences for where each ship would like to go
-    targets.update(state, queue)
+    targets = Targets(state, actions, bounties)
 
-    # now decide on "normal" actions for the remaining actors
-    while queue.pending():
-        # schedule the next ship/yard
-        actor = queue.schedule(state)
+    # decide on moves for all ships/yards
+    move(state, actions, targets, spawns)
 
-        # decide on an action for it
-        action = decide(state, actor)
-
-        # update game state with consequence of action
-        state.update(actor, action)
-
-        # put any ships on fifo yards back in the queue if
-        # the action resulted in a new ship on a fifo yard
-        fifos.resolve(state, queue)
-
-        # write action into dictionary of actions to return
-        if action is not None:
-            actions[actor] = action
-
-    # keep track of time spent
+    # record time spent during this step
     tock = time()
-    stats.total_time += tock - tick
+    memory.total_time += tock - tick
 
     # print some statistics about the game before the last step
     if 2 + state.step == state.total_steps:
-        stats.summary()
+        memory.summary()
 
     # print how long the step took
     elif PRINT_STEP_TIMES:
-        ticktock = round(tock - tick, 2)
-        print(f"Step {1 + state.step} took {ticktock} seconds")
+        print(f"Step {1 + state.step} took {round(tock - tick, 2)} seconds")
 
-    return actions
+    return actions.decided
