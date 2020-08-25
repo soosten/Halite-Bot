@@ -16,8 +16,6 @@ class Memory:
 
         self.total_time = 0
 
-        self.protected = np.array([]).astype(int)
-
         self.ship_targets = []
         return
 
@@ -77,7 +75,7 @@ class Memory:
             dec = round(self.converted_bounties / self.total_bounties, 2)
             frac = frac + f" = {dec}"
 
-        mined = self.state.my_halite \
+        total = self.state.my_halite \
               + self.state.config.spawnCost * self.ships_built \
               + self.state.config.convertCost * self.yards_built
 
@@ -91,6 +89,6 @@ class Memory:
         print(f"  Yards built: {self.yards_built}")
         print(f"  Ships lost: {self.ships_lost}")
         print(f"  Yards lost: {self.yards_lost}")
-        print(f"  Total halite: {mined}")
+        print(f"  Total halite: {total}")
         print(f"  Average time per step: {avg_time} seconds\n")
         return

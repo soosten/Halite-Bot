@@ -112,17 +112,29 @@ class State:
 
         return
 
-    def newpos(self, pos, action):
-        if (action is None) or (action == "CONVERT"):
-            return pos
-        elif action == "NORTH":
-            return self.north[pos]
-        elif action == "SOUTH":
-            return self.south[pos]
-        elif action == "EAST":
-            return self.east[pos]
-        elif action == "WEST":
-            return self.west[pos]
+    def pos_to_move(self, initial, final):
+        if final == self.north[initial]:
+            return "NORTH"
+        elif final == self.south[initial]:
+            return "SOUTH"
+        elif final == self.east[initial]:
+            return "EAST"
+        elif final == self.west[initial]:
+            return "WEST"
+        else:
+            return None
+
+    def move_to_pos(self, initial, move):
+        if move == "NORTH":
+            return self.north[initial]
+        elif move == "SOUTH":
+            return self.south[initial]
+        elif move == "EAST":
+            return self.east[initial]
+        elif move == "WEST":
+            return self.west[initial]
+        else:
+            return initial
 
     def update(self, actor, action):
         # if actor is a yard only spawning has an effect on state
@@ -163,7 +175,7 @@ class State:
                     nhal = hal
 
                 # write the new position and halite into my_ships
-                npos = self.newpos(pos, action)
+                npos = self.move_to_pos(pos, action)
                 self.my_ships[actor] = [npos, nhal]
 
                 # add new position to list of ships that cannot move this turn

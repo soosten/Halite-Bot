@@ -28,6 +28,8 @@ def convert(state, actions):
     should_convert = should_convert and (state.step < YARD_MAX_STEP)
     should_convert = should_convert and (len(actions.ships) > 0)
 
+    # should_convert = False
+
     if not should_convert:
         return
 

@@ -1,4 +1,4 @@
-def move(state, actions, targets, spawns):
+def decide(state, actions, targets, spawns):
     if len(actions.ships) != 0:
         # calculate the value per step of going to a specific site
         cost_matrix = np.vstack([move_row(ship, state, targets)
@@ -17,27 +17,27 @@ def move(state, actions, targets, spawns):
         ship_inds, sites = assignment(cost_matrix, maximize=True)
 
         for ship_ind, site in zip(ship_inds, sites):
-            # convert indices into ships, sites, and values and
-            # add the destination
             ship = actions.ships[ship_ind]
+
             pos, hal = state.my_ships[ship]
 
-            for move in [None, "NORTH", "SOUTH", "EAST", "WEST"]:
-                if state.newpos(pos, move) == site:
-                    break
+            move = state.pos_to_move(pos, site)
+
+            # if doomed, move freely?
 
             if move is not None:
                 actions.decided[ship] = move
-                state.update(ship, move)
 
-    while spawns.num_spawns > 0:
+            state.update(ship, move)
+
+
+    while spawns.num_spawns > 0 and len(spawns.yards) > 0:
         yard = max(spawns.yards, key=spawns.yards.get)
         spawns.yards.pop(yard)
         actions.yards.remove(yard)
         if not state.moved_this_turn[state.my_yards[yard]]:
             actions.decided[yard] = "SPAWN"
-
-        spawns.num_spawns -= 1
+            spawns.num_spawns -= 1
 
     return
 
@@ -48,10 +48,13 @@ def move_row(ship, state, targets):
 
     row = np.where(state.dist[pos, :] > 1, -np.inf, 0)
 
-    for ind in range(5):
-        move = targets.rankings[ship][ind]
-        npos = state.newpos(pos, move)
-        row[npos] = 10 * (5 - ind)
+    row[targets.moves[ship]] = 10 * (5 - np.arange(5))
+
+    none_flag = (targets.destinations[ship] not in state.my_yard_pos)
+    none_flag = none_flag and (state.halite_map[pos] > 0)
+    none_flag = none_flag and (pos != targets.destinations[ship])
+
+    row[pos] -= 100 * none_flag
 
     # find those ships that have less halite than we do
     # add 1 to hal if we want to have a strict halite comparison

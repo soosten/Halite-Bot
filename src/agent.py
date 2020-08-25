@@ -24,7 +24,7 @@ def agent(obs, config):
     targets = Targets(state, actions, bounties)
 
     # decide on moves for all ships/yards
-    move(state, actions, targets, spawns)
+    decide(state, actions, targets, spawns)
 
     # record time spent during this step
     tock = time()
