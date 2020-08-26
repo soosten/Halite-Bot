@@ -4,8 +4,8 @@ def convert(state, actions):
     # only convert if you still have enough halite to spawn a ship afterwards
     def legal(ship):
         pos, hal = state.my_ships[ship]
-        minhal = state.config.convertCost - hal
-        minhal += state.config.spawnCost * (len(state.my_ships) == 1)
+        minhal = state.convert_cost - hal
+        minhal += state.spawn_cost * (len(state.my_ships) == 1)
         return (state.my_halite >= minhal) and (pos not in state.my_yard_pos)
 
     # if we don't have any yards, we try to convert the ship
@@ -27,8 +27,6 @@ def convert(state, actions):
     should_convert = (state.my_yard_pos.size < yards_wanted)
     should_convert = should_convert and (state.step < YARD_MAX_STEP)
     should_convert = should_convert and (len(actions.ships) > 0)
-
-    # should_convert = False
 
     if not should_convert:
         return

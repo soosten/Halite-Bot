@@ -1,11 +1,15 @@
 class State:
     def __init__(self, obs, config):
-        # complete game configuration - remove eventually
-        self.config = config
-
-        # game configuration
+        # read game configuration
         self.map_size = config.size
         self.total_steps = config.episodeSteps
+        self.starting_halite = config.startingHalite
+        self.regen_rate = config.regenRate
+        self.collect_rate = config.collectRate
+        self.convert_cost = config.convertCost
+        self.spawn_cost = config.spawnCost
+
+        # step and halite map
         self.step = obs.step
         self.halite_map = np.array(obs.halite)
 
@@ -35,12 +39,12 @@ class State:
             + ((self.sites % size) - 1) % size
 
         # dist[x,y] stores the l1-distance between x and y on the torus
-        cols = self.sites % self.map_size
-        rows = self.sites // self.map_size
+        cols = self.sites % size
+        rows = self.sites // size
         coldist = cols - cols[:, np.newaxis]
         rowdist = rows - rows[:, np.newaxis]
-        coldist = np.fmin(np.abs(coldist), self.map_size - np.abs(coldist))
-        rowdist = np.fmin(np.abs(rowdist), self.map_size - np.abs(rowdist))
+        coldist = np.fmin(np.abs(coldist), size - np.abs(coldist))
+        rowdist = np.fmin(np.abs(rowdist), size - np.abs(rowdist))
         self.dist = coldist + rowdist
 
         # sets a number of numpy arrays deriving from self.my_ships, etc
@@ -150,7 +154,7 @@ class State:
             self.moved_this_turn[pos] = True
 
             # subtract spawn cost from available halite
-            self.my_halite -= int(self.config.spawnCost)
+            self.my_halite -= int(self.spawn_cost)
 
         if actor in self.my_ships:
             pos, hal = self.my_ships[actor]
@@ -162,13 +166,13 @@ class State:
 
                 # remove conversion cost from available halite but don't add
                 # any net gains - it's not available until next turn
-                self.my_halite += min(hal - self.config.convertCost, 0)
+                self.my_halite += min(hal - self.convert_cost, 0)
                 self.halite_map[pos] = 0
 
             else:
                 # if the ship stays put, it can collect halite
                 if action is None:
-                    collect = self.halite_map[pos] * self.config.collectRate
+                    collect = self.halite_map[pos] * self.collect_rate
                     nhal = int(hal + collect)
                     self.halite_map[pos] -= collect
                 else:

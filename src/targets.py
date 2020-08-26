@@ -57,7 +57,7 @@ class Targets:
         SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
 
         # add a premium if we need to spawn but don't have halite
-        # spawn = state.my_halite < state.config.spawnCost
+        # spawn = state.my_halite < state.spawn_cost
         # spawn = spawn and should_spawn(state)
         # spawn = spawn and state.step > SPAWN_PREMIUM_STEP
         # SR += SPAWN_PREMIUM * spawn
@@ -98,20 +98,21 @@ class Targets:
         # indices of minable sites
         minable = state.halite_map > MIN_MINING_HALITE
 
-        # # ignore halite next to enemy yards so ships don't get poached
-        if state.opp_yard_pos.size != 0:
-            minable &= np.amin(state.dist[state.opp_yard_pos, :], axis=0) > 1
+        # ignore halite next to enemy yards so ships don't get poached
+        opp_yard_dist = np.amin(state.dist[state.opp_yard_pos, :], axis=0,
+                                initial=state.map_size)
+        minable &= (opp_yard_dist > 1)
 
         H = state.halite_map[minable]
         SD = ship_dists[minable]
         YD = self.yard_dists[ship][minable]
 
-        X = (1 + state.config.regenRate) * (1 - state.config.collectRate)
-        A = state.config.collectRate / (1 - X)
+        X = (1 + state.regen_rate) * (1 - state.collect_rate)
+        A = state.collect_rate / (1 - X)
 
         F = ((1 + SR) ** SD) * ((1 + YR) ** YD)
         F1 = C / F
-        F2 = A * ((1 + state.config.regenRate) ** SD) * H
+        F2 = A * ((1 + state.regen_rate) ** SD) * H
         F2 = F2 / F
 
         with np.errstate(divide='ignore'):

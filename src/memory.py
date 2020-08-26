@@ -72,8 +72,8 @@ class Memory:
             frac = frac + f" = {dec}"
 
         total_halite = self.state.my_halite \
-                     + self.state.config.spawnCost * self.ships_built \
-                     + self.state.config.convertCost * self.yards_built
+                     + self.state.spawn_cost * self.ships_built \
+                     + self.state.convert_cost * self.yards_built
 
         print(f"SUMMARY FOR PLAYER {self.state.my_id}:")
         print("  Bounties converted: " + frac)
@@ -83,5 +83,5 @@ class Memory:
         print(f"  Yards built: {self.yards_built}")
         print(f"  Ships lost: {self.ships_lost}")
         print(f"  Yards lost: {self.yards_lost}")
-        print(f"  Total halite: {total_halite}")
+        print(f"  Total halite: {total_halite}\n")
         return

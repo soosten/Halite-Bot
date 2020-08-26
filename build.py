@@ -22,7 +22,7 @@ def main():
     agents = [submission, submission, submission, submission]
 
     # run the simulation - random seed and number of steps are optional
-    run(path, agents, steps=400, seed=42)
+    run(path, agents, steps=400, seed=13)
 
     # uncomment to upload submission.py to kaggle competition
     # assumes kaggle CLI is installed with proper credentials
