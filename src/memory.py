@@ -2,21 +2,17 @@ class Memory:
     def __init__(self):
         self.last_state = None
         self.state = None
-
         self.total_bounties = 0
         self.converted_bounties = 0
         self.loot = 0
         self.yards_destroyed = 0
-
         self.ships_lost = 0
         self.yards_lost = 0
-
         self.yards_built = 0
         self.ships_built = 0
 
-        self.total_time = 0
-
         self.ship_targets = []
+        self.cargo = 0
         return
 
     def statistics(self, argstate):
@@ -75,11 +71,9 @@ class Memory:
             dec = round(self.converted_bounties / self.total_bounties, 2)
             frac = frac + f" = {dec}"
 
-        total = self.state.my_halite \
-              + self.state.config.spawnCost * self.ships_built \
-              + self.state.config.convertCost * self.yards_built
-
-        avg_time = round(self.total_time / (self.state.total_steps - 1), 2)
+        total_halite = self.state.my_halite \
+                     + self.state.config.spawnCost * self.ships_built \
+                     + self.state.config.convertCost * self.yards_built
 
         print(f"SUMMARY FOR PLAYER {self.state.my_id}:")
         print("  Bounties converted: " + frac)
@@ -89,6 +83,5 @@ class Memory:
         print(f"  Yards built: {self.yards_built}")
         print(f"  Ships lost: {self.ships_lost}")
         print(f"  Yards lost: {self.yards_lost}")
-        print(f"  Total halite: {total}")
-        print(f"  Average time per step: {avg_time} seconds\n")
+        print(f"  Total halite: {total_halite}")
         return

@@ -40,8 +40,5 @@ SPAWN_PREMIUM = 0.01  # deposit if we need halite to spawn
 BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
 BASELINE_YARD_RATE = 0.02  # tendency to go to yard / mine for less time
 
-# print how long each step took?
-PRINT_STEP_TIMES = True
-
 # intialize global memory objects to keep track of things between steps
 memory = Memory()

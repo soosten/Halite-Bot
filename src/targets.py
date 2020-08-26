@@ -6,38 +6,37 @@ class Targets:
         if self.num_ships == 0:
             return
 
+        # set up candidate moves for each ship and compute
+        # distances on an appropriately weighted graph
         self.geometry(state, actions)
 
         # the optimal assignment will assign only one ship to each site
         # but we want more than one ship to go back to each yard so
         # we add duplicates of the yards to the rewards to make this possible
-        self.duplicates = np.tile(state.my_yard_pos, self.num_ships - 1)
-        self.ind_to_site = np.append(self.duplicates, state.sites)
+        duplicates = np.tile(state.my_yard_pos, self.num_ships - 1)
+        ind_to_site = np.append(duplicates, state.sites)
 
-        # calculate the value per step of going to a specific site
-        cost_matrix = np.vstack([self.calc_rewards(ship, state, bounties)
+        # calculate the value of going to a site for each ship
+        cost_matrix = np.vstack([self.rewards(ship, state, bounties)
                                  for ship in actions.ships])
 
         # find the optimal assignment of ships to destinations
-        # the optimal assignment assignment assigns ship_inds[i] to
-        # site_inds[i]
+        # the optimal assignment assigns ship_inds[i] to site_inds[i]
         ship_inds, site_inds = assignment(cost_matrix, maximize=True)
 
         # go through the solution of the optimal assignment problem and
         # order the moves by preference
-
         self.destinations = {}
         self.values = {}
 
         for ship_ind, site_ind in zip(ship_inds, site_inds):
-            # convert indices into ships, sites, and values and
-            # add the destination
-
+            # store destination and value of the ship
             ship = actions.ships[ship_ind]
-
-            self.destinations[ship] = self.ind_to_site[site_ind]
+            self.destinations[ship] = ind_to_site[site_ind]
             self.values[ship] = cost_matrix[ship_ind, site_ind]
 
+            # sort moves by how much they decrease the distance
+            # to the assigned destination
             dest_dists = self.move_dists[ship][:, self.destinations[ship]]
             self.moves[ship] = self.moves[ship][dest_dists.argsort()]
 
@@ -80,7 +79,7 @@ class Targets:
 
         return SR, YR, HR
 
-    def calc_rewards(self, ship, state, bounties):
+    def rewards(self, ship, state, bounties):
         pos, hal = state.my_ships[ship]
 
         reward_map = np.zeros_like(state.halite_map)
@@ -159,6 +158,8 @@ class Targets:
             self.move_dists[ship] = dijkstra(graph, indices=self.moves[ship])
 
             # calculate the distances from all sites to nearest yard
+            # if there are no yards, take the maximum cargo ship instead
+            # which is the ship most likely to convert soon
             if state.my_yard_pos.size != 0:
                 yard_pos = state.my_yard_pos
             else:
