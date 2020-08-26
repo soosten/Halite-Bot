@@ -5,3 +5,6 @@ class Actions:
         self.yards = list(state.my_yards)
         self.free = []
         return
+
+    def asdict(self):
+        return {k: v for k, v in self.decided.items() if v is not None}

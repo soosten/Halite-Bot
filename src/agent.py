@@ -32,4 +32,4 @@ def agent(obs, config):
     if 2 + state.step == state.total_steps:
         memory.summary()
 
-    return actions.decided
+    return actions.asdict()

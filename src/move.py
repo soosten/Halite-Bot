@@ -4,7 +4,15 @@ def move(state, actions, targets):
         return
 
     # calculate the value per step of going to a specific site
-    cost_matrix, threat_matrix, infinite = matrices(state, actions, targets)
+    cost_matrix, threats, weak_threats = matrices(state, actions, targets)
+
+    # regularize infinities - replace them by very negative finite values
+    # that can never be compensated by a good matching. so any matching
+    # with an effective infinity is worse than any matching without one
+    finite = np.isfinite(cost_matrix)
+    infinite = ~finite
+    eff_inf = 1 + 2 * len(actions.ships) * np.max(np.abs(cost_matrix[finite]))
+    cost_matrix[infinite] = -eff_inf
 
     # find the optimal assignment of ships to sites
     ship_inds, sites = assignment(cost_matrix, maximize=True)
@@ -17,18 +25,57 @@ def move(state, actions, targets):
     for ship_ind, site in zip(ship_inds, sites):
         ship = ind_to_ship[ship_ind]
 
-        # if doomed, move freely?
-        if infinite[ship_ind, site] or threat_matrix[ship_ind, site]:
-            pass
+        # if the ship was assigned to an unsafe site, decide on a move later
+        if infinite[ship_ind, site] or threats[ship_ind, site]:
+            actions.free.append(ship)
+            actions.ships.remove(ship)
+            continue
 
         pos, hal = state.my_ships[ship]
         decision = state.pos_to_move(pos, site)
-
-        if decision is not None:
-            actions.decided[ship] = decision
-
-        actions.ships.remove(ship)
+        actions.decided[ship] = decision
         state.update(ship, decision)
+        actions.ships.remove(ship)
+
+    # now decide on actions for ships that were pulled from the assignment
+    for ship in actions.free:
+        print(1 + state.step)
+        pos, hal = state.my_ships[ship]
+
+        illegal = (state.dist[pos, :] > 1)
+        self_col = state.moved_this_turn
+        weak_opp_col = weak_threats[ind_to_ship.index(ship), :]
+
+        # ideally, don't collide with opponents or our own ships
+        bad = illegal | self_col | weak_opp_col
+
+        # if this is impossible, don't collide with opponents
+        if np.sum(~bad) == 0:
+            bad = illegal | weak_opp_col
+
+        # if this is impossible, don't collide with our own ships
+        if np.sum(~bad) == 0:
+            bad = illegal | self_col
+
+        # otherwise just make a move
+        if np.sum(~bad) == 0:
+            bad = illegal
+
+        # in most of these situations, staying put is a bad move
+        # we could get lucky escaping other ships
+        if np.sum(~bad) >= 2:
+            bad[pos] = True
+
+        candidates = state.sites[~bad]
+        ranking = targets.moves[ship]
+
+        ind = np.in1d(ranking, candidates).argmax()
+        site = ranking[ind]
+
+        decision = state.pos_to_move(pos, site)
+        actions.decided[ship] = decision
+        state.update(ship, decision)
+        actions.free.remove(ship)
 
     return
 
@@ -36,6 +83,7 @@ def move(state, actions, targets):
 def matrices(state, actions, targets):
     dims = (len(actions.ships), state.map_size ** 2)
     threat_matrix = np.empty(dims, dtype=np.bool_)
+    weak_threat_matrix = np.empty(dims, dtype=np.bool_)
     cost_matrix = np.empty(dims, dtype=np.float_)
 
     # construct cost_matrix and threat_matrix
@@ -53,15 +101,20 @@ def matrices(state, actions, targets):
         # add 1 to hal if we want to have a strict halite comparison
         # since x < hal becomes x <= hal for integer values...
         ships = state.opp_ship_pos[state.opp_ship_hal < (hal + strict)]
-        ship_dist = np.amin(state.dist[ships, :], axis=0, initial=state.map_size)
+        ship_dist = np.amin(state.dist[ships, :], axis=0,
+                            initial=state.map_size)
+
+        weak_ships = state.opp_ship_pos[state.opp_ship_hal < hal]
+        weak_ship_dist = np.amin(state.dist[weak_ships, :], axis=0,
+                                 initial=state.map_size)
 
         # threatened sites are opponent shipyard and sites where ships with
         # less cargo can be in one step
         threat_matrix[index, :] = np.in1d(state.sites, state.opp_yard_pos)
         threat_matrix[index, :] |= (ship_dist <= 1)
 
-        # penalize illegal moves with infinity
-        cost_matrix[index, :] = np.where(state.dist[pos, :] > 1, -np.inf, 0)
+        weak_threat_matrix[index, :] = np.in1d(state.sites, state.opp_yard_pos)
+        weak_threat_matrix[index, :] |= (weak_ship_dist <= 1)
 
         # penalize legal moves by ranking from targets
         cost_matrix[index, targets.moves[ship]] = -10 * np.arange(5)
@@ -78,14 +131,9 @@ def matrices(state, actions, targets):
         if (dest not in state.opp_yard_pos) or (state.dist[pos, dest] > 2):
             cost_matrix[index, :] -= 1000 * threat_matrix[index, :]
 
-        cost_matrix[index, :] = value * cost_matrix[index, :]
+        cost_matrix[index, :] = max(value, 1) * cost_matrix[index, :]
 
-    # regularize infinities - replace them by very negative finite values
-    # that can never be compensated by a good matching. so any matching
-    # with an effective infinity is worse than any matching without one
-    finite = np.isfinite(cost_matrix)
-    infinite = ~finite
-    eff_inf = 1 + len(actions.ships) * np.max(np.abs(cost_matrix[finite]))
-    cost_matrix[infinite] = -eff_inf
+        # penalize illegal moves with infinity
+        cost_matrix[index, state.dist[pos, :] > 1] = -np.inf
 
-    return cost_matrix, threat_matrix, infinite
+    return cost_matrix, threat_matrix, weak_threat_matrix

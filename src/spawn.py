@@ -49,4 +49,6 @@ def spawn(state, actions):
             actions.decided[yard] = "SPAWN"
             num_spawns -= 1
 
+    actions.yards.clear()
+
     return
