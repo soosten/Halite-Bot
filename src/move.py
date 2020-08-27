@@ -20,22 +20,37 @@ def move(state, actions, targets):
     # go through the solution - if the assigned site is legal and safe
     # we move onto it, otherwise we add the ship to list of ships
     # for which decisions are made independently
-    independent = []
+    threatened = []
+    depositing = []
+
     for ship_ind, site in zip(ship_inds, sites):
         ship = actions.ships[ship_ind]
+        pos, hal = state.my_ships[ship]
 
         # if the ship was assigned to an unsafe site, decide on a move later
         if infinite[ship_ind, site] or threats[ship_ind, site]:
-            independent.append(ship_ind)
+            threatened.append(ship_ind)
             continue
 
-        pos, hal = state.my_ships[ship]
+        # if the ship is depositing after the interest spike and
+        # there is traffic at the yard, move freely
+        spike = (state.total_steps - state.step) < STEPS_SPIKE
+        spike = spike and (state.my_yard_pos.size > 0)
+        if spike:
+            yard_ind = np.argmin(state.dist[state.my_yard_pos, pos], axis=0)
+            yard = state.my_yard_pos[yard_ind]
+            close = state.dist[yard, pos] <= 3
+            traffic = np.sum(state.dist[state.my_ship_pos, yard] <= 4) >= 10
+            if traffic and close:
+                depositing.append(ship_ind)
+                continue
+
         decision = state.pos_to_move(pos, site)
         actions.decided[ship] = decision
         state.update(ship, decision)
 
-    # now decide on actions for ships that were pulled from the assignment
-    for ship_ind in independent:
+    # decide on actions for ships that were assigned to unsafe sites
+    for ship_ind in threatened:
         ship = actions.ships[ship_ind]
         pos, hal = state.my_ships[ship]
 
@@ -63,10 +78,33 @@ def move(state, actions, targets):
         if np.sum(~exclude) >= 2:
             exclude[pos] = True
 
+        # get the highest-ranked moved that is not excluded
         candidates = state.sites[~exclude]
         ranking = targets.moves[ship]
+        ind = np.in1d(ranking, candidates).argmax()
+        site = ranking[ind]
 
-        # get the best move included in candidates
+        decision = state.pos_to_move(pos, site)
+        actions.decided[ship] = decision
+        state.update(ship, decision)
+
+    for ship_ind in depositing:
+        ship = actions.ships[ship_ind]
+        pos, hal = state.my_ships[ship]
+
+        illegal = (state.dist[pos, :] > 1)
+        weak_opp_col = weak_threats[ship_ind, :]
+
+        # ideally don't collide with opponent ships
+        exclude = illegal | weak_opp_col
+
+        # otherwise just make a move
+        if np.sum(~exclude) == 0:
+            exclude = illegal
+
+        # get the highest-ranked moved that is not excluded
+        candidates = state.sites[~exclude]
+        ranking = targets.moves[ship]
         ind = np.in1d(ranking, candidates).argmax()
         site = ranking[ind]
 
@@ -83,6 +121,7 @@ def matrices(state, actions, targets):
     threat_matrix = np.empty(dims, dtype=np.bool_)
     weak_threat_matrix = np.empty(dims, dtype=np.bool_)
     cost_matrix = np.empty(dims, dtype=np.float_)
+    ship_values = np.array(list(targets.values.values()))
 
     # construct cost_matrix and threat_matrix
     for index in range(len(actions.ships)):
@@ -127,9 +166,12 @@ def matrices(state, actions, targets):
         # turn off opponent collision checking if we are hunting a yard
         # and are close enough to strike
         if (dest not in state.opp_yard_pos) or (state.dist[pos, dest] > 2):
-            cost_matrix[index, :] -= 1000 * threat_matrix[index, :]
+            cost_matrix[index, :] -= 1000 * threat_matrix[index, :].astype(int)
 
-        # cost_matrix[index, :] = max(value, 1) * cost_matrix[index, :]
+        # give higher priority to ships with higher values
+        multiplier = 1 + np.sum(hal > state.my_ship_hal) / state.my_ship_hal.size
+        # multiplier = 1 + np.sum(value > ship_values) / ship_values.size
+        cost_matrix[index, :] = multiplier * cost_matrix[index, :]
 
         # penalize illegal moves with infinity
         cost_matrix[index, state.dist[pos, :] > 1] = -np.inf
