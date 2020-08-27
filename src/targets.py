@@ -10,6 +10,8 @@ class Targets:
         # distances on an appropriately weighted graph
         self.geometry(state, actions)
 
+        self.spawns = num_spawns(state)
+
         # the optimal assignment will assign only one ship to each site
         # but we want more than one ship to go back to each yard so
         # we add duplicates of the yards to the rewards to make this possible
@@ -57,11 +59,11 @@ class Targets:
         SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
 
         # add a premium if we need to spawn but don't have halite
-        # spawn = state.my_halite < state.spawn_cost
-        # spawn = spawn and should_spawn(state)
-        # spawn = spawn and state.step > SPAWN_PREMIUM_STEP
-        # SR += SPAWN_PREMIUM * spawn
-        # YR += SPAWN_PREMIUM * spawn
+        spawn = state.my_halite < state.spawn_cost
+        spawn = spawn and (self.spawns > 0)
+        spawn = spawn and state.step > SPAWN_PREMIUM_STEP
+        SR += SPAWN_PREMIUM * spawn
+        YR += SPAWN_PREMIUM * spawn
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:

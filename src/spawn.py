@@ -1,4 +1,27 @@
 def spawn(state, actions):
+    # check how many new ships we should build
+    new_ships = num_spawns(state)
+    new_ships = min(new_ships, state.my_halite // state.spawn_cost)
+    new_ships = min(new_ships, len(actions.yards))
+
+    # rank yards by where we should spawn first
+    def priority(yard):
+        pos = state.my_yards[yard]
+        return -np.sum(state.dist[state.my_ship_pos, pos] <= 3)
+
+    while new_ships > 0 and len(actions.yards) > 0:
+        yard = max(actions.yards, key=priority)
+        actions.yards.remove(yard)
+        if not state.moved_this_turn[state.my_yards[yard]]:
+            actions.decided[yard] = "SPAWN"
+            new_ships -= 1
+
+    actions.yards.clear()
+
+    return
+
+
+def num_spawns(state):
     # determine how many ships we would like to spawn based on all players'
     # number of ships and score = halite + cargo
     ships = state.my_ship_pos.size
@@ -26,29 +49,11 @@ def spawn(state, actions):
     new_ships = max(bound, new_ships)
 
     # spawn if we there is a lot of time left
-    bound = len(actions.yards) * (state.step < SPAWNING_STEP)
+    bound = YARD_SCHEDULE.size * (state.step < SPAWNING_STEP)
     new_ships = max(bound, new_ships)
 
     # don't spawn if its no longer worth it and we have a few ships
     if (state.total_steps - state.step) < STEPS_FINAL and ships >= 5:
         new_ships = 0
 
-    # can't spawn more than we can afford or have yards for
-    new_ships = min(new_ships, halite // state.spawn_cost)
-    num_spawns = min(new_ships, len(actions.yards))
-
-    # rank yards by where we should spawn first
-    def priority(yard):
-        pos = state.my_yards[yard]
-        return -np.sum(state.dist[state.my_ship_pos, pos] <= 3)
-
-    while num_spawns > 0 and len(actions.yards) > 0:
-        yard = max(actions.yards, key=priority)
-        actions.yards.remove(yard)
-        if not state.moved_this_turn[state.my_yards[yard]]:
-            actions.decided[yard] = "SPAWN"
-            num_spawns -= 1
-
-    actions.yards.clear()
-
-    return
+    return new_ships

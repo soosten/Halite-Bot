@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import tarfile
 from shutil import copyfileobj
 from kaggle_environments import make
 
@@ -22,11 +23,22 @@ def main():
     agents = [submission, submission, submission, submission]
 
     # run the simulation - random seed and number of steps are optional
-    run(path, agents, steps=400, seed=13)
+    # run(path, agents, steps=400, seed=13)
 
     # uncomment to upload submission.py to kaggle competition
     # assumes kaggle CLI is installed with proper credentials
-    # submit(path, "#45 - ")
+    # submit(path, "#43 - double assignment alpha")
+
+    # get files in path/src/ that are not system files
+    src = os.path.join(path, "src")
+    submission = os.path.join(path, "submission.tar.gz")
+
+    with tarfile.open(submission, "w:gz") as tar:
+        for file in os.listdir(src):
+            if file.endswith(".py"):
+                tar.add(os.path.join(src, file), arcname=file)
+
+    os.remove(submission)
 
     print("\nDone.")
     return

@@ -3,7 +3,6 @@ class Actions:
         self.decided = {}
         self.ships = list(state.my_ships)
         self.yards = list(state.my_yards)
-        self.free = []
         return
 
     def asdict(self):

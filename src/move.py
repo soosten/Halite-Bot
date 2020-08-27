@@ -20,63 +20,61 @@ def move(state, actions, targets):
     # go through the solution - if the assigned site is legal and safe
     # we move onto it, otherwise we add the ship to list of ships
     # for which decisions are made independently
-    ind_to_ship = actions.ships.copy()
-
+    independent = []
     for ship_ind, site in zip(ship_inds, sites):
-        ship = ind_to_ship[ship_ind]
+        ship = actions.ships[ship_ind]
 
         # if the ship was assigned to an unsafe site, decide on a move later
         if infinite[ship_ind, site] or threats[ship_ind, site]:
-            actions.free.append(ship)
-            actions.ships.remove(ship)
+            independent.append(ship_ind)
             continue
 
         pos, hal = state.my_ships[ship]
         decision = state.pos_to_move(pos, site)
         actions.decided[ship] = decision
         state.update(ship, decision)
-        actions.ships.remove(ship)
 
     # now decide on actions for ships that were pulled from the assignment
-    for ship in actions.free:
-        print(1 + state.step)
+    for ship_ind in independent:
+        ship = actions.ships[ship_ind]
         pos, hal = state.my_ships[ship]
 
         illegal = (state.dist[pos, :] > 1)
         self_col = state.moved_this_turn
-        weak_opp_col = weak_threats[ind_to_ship.index(ship), :]
+        weak_opp_col = weak_threats[ship_ind, :]
 
         # ideally, don't collide with opponents or our own ships
-        bad = illegal | self_col | weak_opp_col
+        exclude = illegal | self_col | weak_opp_col
 
         # if this is impossible, don't collide with opponents
-        if np.sum(~bad) == 0:
-            bad = illegal | weak_opp_col
+        if np.sum(~exclude) == 0:
+            exclude = illegal | weak_opp_col
 
         # if this is impossible, don't collide with our own ships
-        if np.sum(~bad) == 0:
-            bad = illegal | self_col
+        if np.sum(~exclude) == 0:
+            exclude = illegal | self_col
 
         # otherwise just make a move
-        if np.sum(~bad) == 0:
-            bad = illegal
+        if np.sum(~exclude) == 0:
+            exclude = illegal
 
-        # in most of these situations, staying put is a bad move
+        # in most of these situations, staying put is a exclude move
         # we could get lucky escaping other ships
-        if np.sum(~bad) >= 2:
-            bad[pos] = True
+        if np.sum(~exclude) >= 2:
+            exclude[pos] = True
 
-        candidates = state.sites[~bad]
+        candidates = state.sites[~exclude]
         ranking = targets.moves[ship]
 
+        # get the best move included in candidates
         ind = np.in1d(ranking, candidates).argmax()
         site = ranking[ind]
 
         decision = state.pos_to_move(pos, site)
         actions.decided[ship] = decision
         state.update(ship, decision)
-        actions.free.remove(ship)
 
+    actions.ships.clear()
     return
 
 
@@ -131,7 +129,7 @@ def matrices(state, actions, targets):
         if (dest not in state.opp_yard_pos) or (state.dist[pos, dest] > 2):
             cost_matrix[index, :] -= 1000 * threat_matrix[index, :]
 
-        cost_matrix[index, :] = max(value, 1) * cost_matrix[index, :]
+        # cost_matrix[index, :] = max(value, 1) * cost_matrix[index, :]
 
         # penalize illegal moves with infinity
         cost_matrix[index, state.dist[pos, :] > 1] = -np.inf
