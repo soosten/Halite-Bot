@@ -1,16 +1,20 @@
 class Targets:
-    def __init__(self, state, actions, bounties):
+    def __init__(self, state, actions, bounties, spawns):
         self.num_ships = len(actions.ships)
 
         # if there are no ships, there is nothing to do
         if self.num_ships == 0:
             return
 
+        # read relevant spawning information
+        self.spawns_wanted = spawns.ships_wanted
+        self.spawns_possible = spawns.ships_possible
+        likely_spawns = spawns.spawn_pos[0:self.spawns_possible]
+        self.protected = np.setdiff1d(memory.protected, likely_spawns)
+
         # set up candidate moves for each ship and compute
         # distances on an appropriately weighted graph
         self.geometry(state, actions)
-
-        self.spawns = num_spawns(state)
 
         # the optimal assignment will assign only one ship to each site
         # but we want more than one ship to go back to each yard so
@@ -59,9 +63,8 @@ class Targets:
         SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
 
         # add a premium if we need to spawn but don't have halite
-        spawn = state.my_halite < state.spawn_cost
-        spawn = spawn and (self.spawns > 0)
-        spawn = spawn and state.step > SPAWN_PREMIUM_STEP
+        spawn = (self.spawns_wanted > 0) and (self.spawns_possible == 0)
+        spawn = spawn and (state.step > SPAWN_PREMIUM_STEP)
         SR += SPAWN_PREMIUM * spawn
         YR += SPAWN_PREMIUM * spawn
 
@@ -142,6 +145,14 @@ class Targets:
         # append the duplicate rewards
         yard_rewards = reward_map[state.my_yard_pos]
         duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
+
+        # finally put a large bonus on going to any protected yards that
+        # the ships is next to - this ensures one close ship always
+        # chooses the yard - but don't copy this bonus on the duplicates
+        # since only one ship needs to be there
+
+
+
         return np.append(duplicate_rewards, reward_map)
 
     def geometry(self, state, actions):

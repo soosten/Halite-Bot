@@ -12,7 +12,6 @@ class Memory:
         self.ships_built = 0
 
         self.ship_targets = []
-        self.cargo = 0
         self.protected = np.array([]).astype(int)
         return
 
