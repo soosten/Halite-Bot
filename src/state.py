@@ -64,33 +64,26 @@ class State:
             self.opp_ships.update(obs.players[opp][2])
 
         # arrays containing ship/yard data for all opponents
+        poshal = np.array(list(self.opp_ships.values()))
+        pos, hal = np.hsplit(poshal, 2)
+        self.opp_ship_pos = np.ravel(pos).astype(int)
+        self.opp_ship_hal = np.ravel(hal).astype(int)
         self.opp_yard_pos = np.array(list(self.opp_yards.values())).astype(int)
 
-        if len(self.opp_ships) != 0:
-            poshal = np.array(list(self.opp_ships.values()))
-            self.opp_ship_pos, self.opp_ship_hal = np.split(poshal, 2, axis=1)
-            self.opp_ship_pos = np.ravel(self.opp_ship_pos).astype(int)
-            self.opp_ship_hal = np.ravel(self.opp_ship_hal).astype(int)
-        else:
-            self.opp_ship_pos = np.array([]).astype(int)
-            self.opp_ship_hal = np.array([]).astype(int)
-
-        # now construct a dict of lists with halite, yard positions, ship
+        # construct a dict of lists with halite, yard positions, ship
         # positions, ship halite for each opponent as numpy arrays
         self.opp_data = {}
         self.opp_scores = {}
         self.opp_num_ships = {}
+
         for opp in self.opp_ids:
             halite, yards, ships = obs.players[opp]
+
+            poshal = np.array(list(ships.values()))
+            ship_pos, ship_hal = np.hsplit(poshal, 2)
+            ship_pos = np.ravel(ship_pos).astype(int)
+            ship_hal = np.ravel(ship_hal).astype(int)
             yard_pos = np.array(list(yards.values())).astype(int)
-            if len(ships) > 0:
-                poshal = np.array(list(ships.values()))
-                ship_pos, ship_hal = np.split(poshal, 2, axis=1)
-                ship_pos = np.ravel(ship_pos).astype(int)
-                ship_hal = np.ravel(ship_hal).astype(int)
-            else:
-                ship_pos = np.array([]).astype(int)
-                ship_hal = np.array([]).astype(int)
 
             self.opp_data[opp] = [halite, yard_pos, ship_pos, ship_hal]
             self.opp_num_ships[opp] = ship_pos.size
@@ -103,17 +96,11 @@ class State:
     # these arrays need to be set by init() and also updated by update()
     # do this by calling set_derived()
     def set_derived(self):
+        poshal = np.array(list(self.my_ships.values()))
+        pos, hal = np.hsplit(poshal, 2)
+        self.my_ship_pos = np.ravel(pos).astype(int)
+        self.my_ship_hal = np.ravel(hal).astype(int)
         self.my_yard_pos = np.array(list(self.my_yards.values())).astype(int)
-
-        if len(self.my_ships) != 0:
-            poshal = np.array(list(self.my_ships.values()))
-            self.my_ship_pos, self.my_ship_hal = np.split(poshal, 2, axis=1)
-            self.my_ship_pos = np.ravel(self.my_ship_pos).astype(int)
-            self.my_ship_hal = np.ravel(self.my_ship_hal).astype(int)
-        else:
-            self.my_ship_pos = np.array([]).astype(int)
-            self.my_ship_hal = np.array([]).astype(int)
-
         return
 
     def pos_to_move(self, initial, final):

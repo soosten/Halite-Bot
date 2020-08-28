@@ -2,9 +2,13 @@ def agent(obs, config):
     # read (obs, config) into internal game state object
     state = State(obs, config)
 
-    # update statistics we track across all turns and store total cargo at
-    # the beginning of the turn before any calls to state.update()
+    # update statistics we track across all turns
     memory.statistics(state)
+
+    # fifo
+    memory.protection(state)
+
+    # store total cargo before any calls to state.update()
     memory.cargo = np.sum(state.my_ship_hal)
 
     # actions object stores a list of pending ships/yards. as we decide on

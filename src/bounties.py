@@ -227,13 +227,13 @@ class Bounties:
         # and their corresponding values are in data[indptr[i]:indptr[i+1]]
         indptr = 4 * np.append(state.sites, nsites)
 
-        indices = np.empty(4 * nsites, dtype=np.int_)
+        indices = np.empty(4 * nsites, dtype=int)
         indices[0::4] = state.north
         indices[1::4] = state.south
         indices[2::4] = state.east
         indices[3::4] = state.west
 
-        data = np.empty(4 * nsites, dtype=np.float_)
+        data = np.empty(4 * nsites, dtype=float)
         data[0::4] = 0.5 * (weights + weights[state.north])
         data[1::4] = 0.5 * (weights + weights[state.south])
         data[2::4] = 0.5 * (weights + weights[state.east])

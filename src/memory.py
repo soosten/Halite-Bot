@@ -15,6 +15,9 @@ class Memory:
         self.cargo = 0
         return
 
+    def protection(self, argstate):
+        return
+
     def statistics(self, argstate):
         # on the first turn, just copy the state into last_state and return
         if self.last_state is None:

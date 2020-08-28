@@ -118,9 +118,9 @@ def move(state, actions, targets):
 
 def matrices(state, actions, targets):
     dims = (len(actions.ships), state.map_size ** 2)
-    threat_matrix = np.empty(dims, dtype=np.bool_)
-    weak_threat_matrix = np.empty(dims, dtype=np.bool_)
-    cost_matrix = np.empty(dims, dtype=np.float_)
+    threat_matrix = np.empty(dims, dtype=bool)
+    weak_threat_matrix = np.empty(dims, dtype=bool)
+    cost_matrix = np.empty(dims, dtype=float)
     ship_values = np.array(list(targets.values.values()))
 
     # construct cost_matrix and threat_matrix
