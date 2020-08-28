@@ -1,5 +1,4 @@
 def agent(obs, config):
-    tick = time()
     # read (obs, config) into internal game state object
     state = State(obs, config)
 
@@ -36,7 +35,5 @@ def agent(obs, config):
     # print some statistics about the game before the last step
     if 2 + state.step == state.total_steps:
         memory.summary()
-
-    print(f"{1 + state.step}: {round(time()-tick, 2)}")
 
     return actions.asdict()

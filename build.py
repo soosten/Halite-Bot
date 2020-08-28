@@ -26,7 +26,7 @@ def main():
 
     # uncomment to upload submission.py to kaggle competition
     # assumes kaggle CLI is installed with proper credentials
-    # submit(path, "#44 - double assignment beta")
+    # submit(path, "#45 - ")
 
     print("\nDone.")
     return
