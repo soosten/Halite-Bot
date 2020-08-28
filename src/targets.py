@@ -150,8 +150,8 @@ class Targets:
         # the ships is next to - this ensures one close ship always
         # chooses the yard - but don't copy this bonus on the duplicates
         # since only one ship needs to be there
-
-
+        inds = state.dist[self.protected, pos] <= 1
+        reward_map[self.protected[inds]] += 1000
 
         return np.append(duplicate_rewards, reward_map)
 

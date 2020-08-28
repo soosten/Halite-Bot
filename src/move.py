@@ -153,6 +153,12 @@ def matrices(state, actions, targets):
         weak_threat_matrix[index, :] = np.in1d(state.sites, state.opp_yard_pos)
         weak_threat_matrix[index, :] |= (weak_ship_dist <= 1)
 
+        # turn off opponent collision checking if we are hunting a yard
+        # and are close enough to strike
+        if (dest in state.opp_yard_pos) and (state.dist[pos, dest] <= 2):
+            threat_matrix[index, :] = False
+            weak_threat_matrix[index, :] = False
+
         # penalize legal moves by ranking from targets
         cost_matrix[index, targets.moves[ship]] = -10 * np.arange(5)
 
@@ -163,10 +169,8 @@ def matrices(state, actions, targets):
         no_cargo = no_cargo and (pos != dest)
         cost_matrix[index, pos] -= 100 * no_cargo
 
-        # turn off opponent collision checking if we are hunting a yard
-        # and are close enough to strike
-        if (dest not in state.opp_yard_pos) or (state.dist[pos, dest] > 2):
-            cost_matrix[index, :] -= 1000 * threat_matrix[index, :].astype(int)
+        # penalize going to unsafe squares
+        cost_matrix[index, :] -= 1000 * threat_matrix[index, :].astype(int)
 
         # give higher priority to ships with higher values
         multiplier = 1 + np.sum(hal > state.my_ship_hal) / state.my_ship_hal.size
