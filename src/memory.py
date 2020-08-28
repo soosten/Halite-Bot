@@ -13,20 +13,33 @@ class Memory:
 
         self.ship_targets = []
         self.cargo = 0
+        self.protected = np.array([]).astype(int)
         return
 
-    def protection(self, argstate):
+    def protection(self, state):
+        # only add protected yards if settings say so
+        if not YARD_PROTECTION:
+            return
+
+        # remove any protected yards that may have been destroyed
+        self.protected = np.intersect1d(self.protected, state.my_yard_pos)
+
+        # protects yards if any opponent ship gets within distance 2
+        inds = np.ix_(state.opp_ship_pos, state.my_yard_pos)
+        dist = np.amin(state.dist[inds], axis=0, initial=state.map_size)
+        yards = state.my_yard_pos[dist <= 2]
+        self.protected = np.union1d(self.protected, yards)
         return
 
-    def statistics(self, argstate):
+    def statistics(self, state):
         # on the first turn, just copy the state into last_state and return
         if self.last_state is None:
-            self.last_state = deepcopy(argstate)
+            self.last_state = deepcopy(state)
             return
 
         # use deepcopy so we keep the state at the beginning of our turn
         # and don't update as we go through deciding actions for our actors
-        self.state = deepcopy(argstate)
+        self.state = deepcopy(state)
 
         # get ship/yard ids from last step and present step count how many
         # new ones we built and how many were destroyed
