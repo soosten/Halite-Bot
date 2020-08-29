@@ -59,14 +59,15 @@ class Targets:
         inds = inds & (state.dist[state.opp_ship_pos, pos] <= RISK_RADIUS)
 
         # FIX UP MORE
-        YR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
-        SR += RISK_PREMIUM * np.sum(inds) * (state.step > STEPS_INITIAL)
+        if state.step > STEPS_INITIAL:
+            YR += RISK_PREMIUM * np.sum(inds)
+            SR += RISK_PREMIUM * np.sum(inds)
 
         # add a premium if we need to spawn but don't have halite
         spawn = (self.spawns_wanted > 0) and (self.spawns_possible == 0)
-        spawn = spawn and (state.step > SPAWN_PREMIUM_STEP)
-        SR += SPAWN_PREMIUM * spawn
-        YR += SPAWN_PREMIUM * spawn
+        if spawn and (state.step > SPAWN_PREMIUM_STEP):
+            SR += SPAWN_PREMIUM
+            YR += SPAWN_PREMIUM
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:
@@ -214,11 +215,9 @@ class Targets:
 
     def make_graph_csr(self, state, weights):
         # weight at any edge (x,y) is (w[x] + w[y])/2
-
-        nsites = state.map_size ** 2
-
         # column indices for row i are in indices[indptr[i]:indptr[i+1]]
         # and their corresponding values are in data[indptr[i]:indptr[i+1]]
+        nsites = state.map_size ** 2
         indptr = 4 * np.append(state.sites, nsites)
 
         indices = np.empty(4 * nsites, dtype=int)

@@ -5,7 +5,8 @@ def convert(state, actions):
     def legal(ship):
         pos, hal = state.my_ships[ship]
         minhal = state.convert_cost - hal
-        minhal += state.spawn_cost * (len(state.my_ships) == 1)
+        if len(state.my_ships) == 1:
+            minhal += state.spawn_cost
         return (state.my_halite >= minhal) and (pos not in state.my_yard_pos)
 
     # if we don't have any yards, we try to convert the ship
@@ -59,7 +60,7 @@ def convert(state, actions):
         eligible = eligible and (opp_ship_dist >= 2)
         eligible = eligible and (cells >= MIN_CELLS)
 
-        return cells * eligible
+        return cells if eligible else 0
 
     # convert the ship with maximum score if this is legal and
     # the score is non-zero

@@ -6,4 +6,6 @@ tests.py
 Notes.md
 testbots/*
 dev/*
+replays/*
+screenshots/*
 current.py

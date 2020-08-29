@@ -8,7 +8,7 @@ HUNT_RADIUS = 3
 
 # conversion and spawning
 YARD_DIST = 6
-OPP_YARD_DIST = 5
+OPP_YARD_DIST = 4
 YARD_RADIUS = 4
 MIN_CELLS = 15
 YARD_SCHEDULE = np.array([0, 9, 40])
@@ -20,7 +20,7 @@ SPAWNING_OFFSET = 5
 STEPS_FINAL = 50  # no conversions or spawns with this many steps left
 
 # bounties and hunting
-SHIPS_PER_BOUNTY = 6
+SHIPS_PER_BOUNTY = 7  # 6 or 7 undecided!
 HUNTING_MAX_RATIO = 0.33
 HUNTING_STEP = 50
 YARD_HUNTING_START = 300

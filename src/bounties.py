@@ -114,7 +114,7 @@ class Bounties:
         # set position/halite/rewards for the targets
         self.ship_targets_pos = opp_ship_pos[target_inds]
         self.ship_targets_hal = opp_ship_hal[target_inds]
-        self.ship_targets_rew = 1000 * np.ones_like(self.ship_targets_pos)
+        self.ship_targets_rew = 500 * np.ones_like(self.ship_targets_pos)
 
         # write the new targets in the ship_targets list
         memory.ship_targets = [key for key, val in state.opp_ships.items()
@@ -135,19 +135,19 @@ class Bounties:
 
         # depending on how many ships we have compared to others
         my_ships = state.my_ship_pos.size
-        max_opp_ships = max(state.opp_scores.values())
+        max_opp_ships = max(state.opp_num_ships.values())
 
         # attack yards at the end of the game
         should_attack = (state.total_steps - state.step) < YARD_HUNTING_FINAL
 
         # or if we have a lot of ships
-        should_attack = should_attack or my_ships > max_opp_ships
+        should_attack = should_attack or (my_ships > max_opp_ships)
 
         # but stop attacking if we don't have a lot of ships anymore
-        should_attack = should_attack and my_ships >= YARD_HUNTING_MIN_SHIPS
+        should_attack = should_attack and (my_ships >= YARD_HUNTING_MIN_SHIPS)
 
         # and don't attack if its too early in the game
-        should_attack = should_attack and state.step > YARD_HUNTING_START
+        should_attack = should_attack and (state.step > YARD_HUNTING_START)
 
         if should_attack:
             opp_yards, opp_ships = state.opp_data[closest][1:3]
@@ -214,7 +214,7 @@ class Bounties:
         # at the end of the game we want most ships to go after yards
         # but during the bulk of the game we don't want to lose too
         # many ships due to shipyard hunting
-        radius = YARD_HUNTING_RADIUS + endgame * 6
+        radius = (YARD_HUNTING_RADIUS + 6) if endgame else YARD_HUNTING_RADIUS
         inds = state.dist[self.yard_targets_pos, pos] <= radius
 
         return self.yard_targets_pos[inds], self.yard_targets_rew[inds]

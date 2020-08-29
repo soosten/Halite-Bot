@@ -66,9 +66,9 @@ class Memory:
         for ship in last_ships - ships:
             pos = self.last_state.my_ships[ship][0]
             dists = self.state.dist[destroyed, pos]
-            self.yards_destroyed += (1 in dists)
-            if self.state.total_steps - self.state.step > STEPS_SPIKE:
-                self.ships_lost -= (1 in dists)
+            if 1 in dists:
+                self.yards_destroyed += 1
+                self.ships_lost -= 1
 
         # see if any of the bounties we set was destroyed
         hunted = [self.last_state.opp_ships[key][1] for key in

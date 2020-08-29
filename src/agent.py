@@ -5,7 +5,7 @@ def agent(obs, config):
     # update statistics we track across all turns
     memory.statistics(state)
 
-    # fifo
+    # update which shipyard should be protected
     memory.protection(state)
 
     # actions object stores a list of pending ships/yards. as we decide on

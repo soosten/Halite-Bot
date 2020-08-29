@@ -18,8 +18,7 @@ class Spawns:
         # determine how many ships we would like to spawn based on all players'
         # number of ships and score = halite + cargo
         ships = state.my_ship_pos.size
-        halite = state.my_halite
-        score = halite + np.sum(state.my_ship_hal)
+        score = state.my_halite + np.sum(state.my_ship_hal)
         max_opp_ships = max(state.opp_num_ships.values())
         max_opp_score = max(state.opp_scores.values())
 
@@ -46,7 +45,7 @@ class Spawns:
         new_ships = max(bound, new_ships)
 
         # don't spawn if its no longer worth it and we have a few ships
-        if (state.total_steps - state.step) < STEPS_FINAL and ships >= 5:
+        if (state.total_steps - state.step < STEPS_FINAL) and (ships >= 5):
             new_ships = 0
 
         # number of ships wanted without constraints

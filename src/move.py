@@ -121,14 +121,12 @@ def matrices(state, actions, targets):
     threat_matrix = np.empty(dims, dtype=bool)
     weak_threat_matrix = np.empty(dims, dtype=bool)
     cost_matrix = np.empty(dims, dtype=float)
-    ship_values = np.array(list(targets.values.values()))
 
     # construct cost_matrix and threat_matrix
     for index in range(len(actions.ships)):
         ship = actions.ships[index]
         pos, hal = state.my_ships[ship]
         dest = targets.destinations[ship]
-        value = targets.values[ship]
 
         yard_dist = np.amin(state.dist[state.my_yard_pos, pos], axis=0,
                             initial=state.map_size)
@@ -167,13 +165,19 @@ def matrices(state, actions, targets):
         no_cargo = (dest not in state.my_yard_pos)
         no_cargo = no_cargo and (state.halite_map[pos] > 0)
         no_cargo = no_cargo and (pos != dest)
-        cost_matrix[index, pos] -= 100 * no_cargo
+        cost_matrix[index, pos] -= (100 if no_cargo else 0)
 
         # penalize going to unsafe squares
-        cost_matrix[index, :] -= 1000 * threat_matrix[index, :].astype(int)
+        cost_matrix[index, threat_matrix[index, :]] -= 1000
 
-        # give higher priority to ships with higher values
-        multiplier = 1 + np.sum(hal > state.my_ship_hal) / state.my_ship_hal.size
+        # give higher priority to ships with higher cargo, but highest
+        # priority to ships with no cargo at all
+        if hal == 0:
+            multiplier = 3
+        else:
+            rank = np.sum(hal > state.my_ship_hal)
+            multiplier = 1 + rank / state.my_ship_hal.size
+
         # multiplier = 1 + np.sum(value > ship_values) / ship_values.size
         cost_matrix[index, :] = multiplier * cost_matrix[index, :]
 

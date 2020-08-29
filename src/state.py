@@ -87,8 +87,10 @@ class State:
 
             self.opp_data[opp] = [halite, yard_pos, ship_pos, ship_hal]
             self.opp_num_ships[opp] = ship_pos.size
-            alive = (ship_pos.size + yard_pos.size) > 0
-            self.opp_scores[opp] = alive * (halite + np.sum(ship_hal))
+            if ship_pos.size + yard_pos.size > 0:
+                self.opp_scores[opp] = halite + np.sum(ship_hal)
+            else:
+                self.opp_scores[opp] = 0
 
         return
 
