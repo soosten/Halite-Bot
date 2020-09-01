@@ -2,7 +2,11 @@ submission.py
 simulation.html
 
 .DS_Store
-1build.py
+tests.py
 Notes.md
 testbots/*
 dev/*
+replays/*
+screenshots/*
+current.py
+saved.py
