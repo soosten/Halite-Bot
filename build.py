@@ -26,7 +26,7 @@ def main():
 
     # uncomment to upload submission.py to kaggle competition
     # assumes kaggle CLI is installed with proper credentials
-    # submit(path, "#47 - ")
+    # submit(path, "#53 - ")
 
     print("\nDone.")
     return
@@ -37,22 +37,19 @@ def write(path):
     src_path = os.path.join(path, "src")
     files = [name for name in os.listdir(src_path) if name.endswith(".py")]
 
-    # check if agent.py, init.py, and imports.py exist and remove them
+    # check if agent.py and imports.py exist and remove them
     try:
         files.remove("agent.py")
-        files.remove("init.py")
         files.remove("imports.py")
     except ValueError:
-        print("Error: /src/ directory must contain agent.py, "
-              + "imports.py, and init.py")
+        print("Error: /src/ directory must contain agent.py and imports.py")
         raise SystemExit
 
     # write the files in lexicographical order so its easier to
     # scroll to them in the combined file
     files.sort()
 
-    # write imports.py, then all files in path/src/, then init.py,
-    # and finally agent.py into submission.py
+    # write imports.py, then path/src/*.py, then agent.py into submission.py
     print("Writing files...")
     with open(os.path.join(path, "submission.py"), "w") as sub_file:
         print("  imports.py")
@@ -65,11 +62,6 @@ def write(path):
             with open(os.path.join(src_path, name), "r") as file:
                 copyfileobj(file, sub_file)
             sub_file.write("\n\n")
-
-        print("  init.py")
-        with open(os.path.join(src_path, "init.py"), "r") as file:
-            copyfileobj(file, sub_file)
-        sub_file.write("\n\n")
 
         print("  agent.py")
         with open(os.path.join(src_path, "agent.py"), "r") as file:

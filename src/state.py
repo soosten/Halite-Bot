@@ -27,7 +27,7 @@ class State:
         self.sites = np.arange(nsites)
 
         # list of positions with ships that have already moved this turn
-        self.moved_this_turn = np.zeros_like(self.sites).astype(bool)
+        self.moved_this_turn = np.zeros_like(self.sites, dtype=bool)
 
         # lookup tables for the effect of moves
         # north[x] is the position north of x, etc
@@ -64,11 +64,11 @@ class State:
             self.opp_ships.update(obs.players[opp][2])
 
         # arrays containing ship/yard data for all opponents
-        poshal = np.array(list(self.opp_ships.values()))
+        poshal = np.array(list(self.opp_ships.values()), dtype=int)
         pos, hal = np.hsplit(poshal, 2)
-        self.opp_ship_pos = np.ravel(pos).astype(int)
-        self.opp_ship_hal = np.ravel(hal).astype(int)
-        self.opp_yard_pos = np.array(list(self.opp_yards.values())).astype(int)
+        self.opp_ship_pos = np.ravel(pos)
+        self.opp_ship_hal = np.ravel(hal)
+        self.opp_yard_pos = np.array(list(self.opp_yards.values()), dtype=int)
 
         # construct a dict of lists with halite, yard positions, ship
         # positions, ship halite for each opponent as numpy arrays
@@ -79,11 +79,11 @@ class State:
         for opp in self.opp_ids:
             halite, yards, ships = obs.players[opp]
 
-            poshal = np.array(list(ships.values()))
+            poshal = np.array(list(ships.values()), dtype=int)
             ship_pos, ship_hal = np.hsplit(poshal, 2)
-            ship_pos = np.ravel(ship_pos).astype(int)
-            ship_hal = np.ravel(ship_hal).astype(int)
-            yard_pos = np.array(list(yards.values())).astype(int)
+            ship_pos = np.ravel(ship_pos)
+            ship_hal = np.ravel(ship_hal)
+            yard_pos = np.array(list(yards.values()), dtype=int)
 
             self.opp_data[opp] = [halite, yard_pos, ship_pos, ship_hal]
             self.opp_num_ships[opp] = ship_pos.size
@@ -98,11 +98,11 @@ class State:
     # these arrays need to be set by init() and also updated by update()
     # do this by calling set_derived()
     def set_derived(self):
-        poshal = np.array(list(self.my_ships.values()))
+        poshal = np.array(list(self.my_ships.values()), dtype=int)
         pos, hal = np.hsplit(poshal, 2)
-        self.my_ship_pos = np.ravel(pos).astype(int)
-        self.my_ship_hal = np.ravel(hal).astype(int)
-        self.my_yard_pos = np.array(list(self.my_yards.values())).astype(int)
+        self.my_ship_pos = np.ravel(pos)
+        self.my_ship_hal = np.ravel(hal)
+        self.my_yard_pos = np.array(list(self.my_yards.values()), dtype=int)
         return
 
     def pos_to_move(self, initial, final):

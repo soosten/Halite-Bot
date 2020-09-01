@@ -53,21 +53,17 @@ class Targets:
 
         SR = BASELINE_SHIP_RATE
         YR = BASELINE_YARD_RATE
+        MR = BASELINE_MINE_RATE
+
+        # MR = 0.04 if (state.step > STEPS_INITIAL) else 0.02
 
         # add a premium if there are a lot of ships that can attack us
         inds = state.opp_ship_hal < hal
-        inds = inds & (state.dist[state.opp_ship_pos, pos] <= RISK_RADIUS)
 
         # FIX UP MORE
         if state.step > STEPS_INITIAL:
             YR += RISK_PREMIUM * np.sum(inds)
             SR += RISK_PREMIUM * np.sum(inds)
-
-        # add a premium if we need to spawn but don't have halite
-        spawn = (self.spawns_wanted > 0) and (self.spawns_possible == 0)
-        if spawn and (state.step > SPAWN_PREMIUM_STEP):
-            SR += SPAWN_PREMIUM
-            YR += SPAWN_PREMIUM
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:
@@ -81,9 +77,10 @@ class Targets:
         # make sure all rates are < 1 so formulas remain stable
         SR = min(SR, 0.9)
         YR = min(YR, 0.9)
+        MR = min(MR, 0.9)
         HR = min(HR, 0.9)
 
-        return SR, YR, HR
+        return SR, YR, MR, HR
 
     def rewards(self, ship, state, bounties):
         pos, hal = state.my_ships[ship]
@@ -95,14 +92,12 @@ class Targets:
         ship_dists = ship_dists[pos_ind, :]
 
         # determine ship rate, yard rate, and hunting rate
-        SR, YR, HR = self.rates(state, ship)
+        SR, YR, MR, HR = self.rates(state, ship)
 
         # add rewards for mining at all minable sites
         # see notes for explanation of these quantities
-        C = state.my_ships[ship][1]
-
         # indices of minable sites
-        minable = state.halite_map > MIN_MINING_HALITE
+        minable = state.halite_map > 0
 
         # ignore halite next to enemy yards so ships don't get poached
         opp_yard_dist = np.amin(state.dist[state.opp_yard_pos, :], axis=0,
@@ -117,20 +112,21 @@ class Targets:
         A = state.collect_rate / (1 - X)
 
         F = ((1 + SR) ** SD) * ((1 + YR) ** YD)
-        F1 = C / F
+        F1 = hal / F
         F2 = A * ((1 + state.regen_rate) ** SD) * H
         F2 = F2 / F
 
         with np.errstate(divide='ignore'):
-            M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + YR))
+            M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + MR))
+
 
         M = np.fmax(1, np.round(M / np.log(X)))
 
-        reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + YR) ** M)
+        reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + MR) ** M)
 
         # add rewards at yard for depositing halite
         ship_yard_dist = ship_dists[state.my_yard_pos]
-        reward_map[state.my_yard_pos] = C / ((1 + YR) ** ship_yard_dist)
+        reward_map[state.my_yard_pos] = hal / ((1 + YR) ** ship_yard_dist)
 
         # insert bounties for opponent ships
         ship_hunt_pos, ship_hunt_rew = bounties.get_ship_targets(ship, state)
@@ -191,16 +187,15 @@ class Targets:
 
         # ignore immediate neighbors in the friendly weights - this is handled
         # automatically and the weights can cause traffic jams at close range
-        # also ignore weights of any ships on fifo yards
-        # friendly = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos)
-        friendly = state.my_ship_pos
+        # also ignore weights of any ships on yards
+        friendly = np.setdiff1d(state.my_ship_pos, state.my_yard_pos)
         friendly = friendly[state.dist[pos, friendly] > 1]
         if friendly.size != 0:
             hood = state.dist[friendly, :] <= MY_RADIUS
             weights += MY_WEIGHT * np.sum(hood, axis=0)
 
         # only consider opponent ships with less halite
-        threats = state.opp_ship_pos[state.opp_ship_hal <= hal]
+        threats = state.opp_ship_pos[state.opp_ship_hal < hal]
         if threats.size != 0:
             hood = state.dist[threats, :] <= OPP_RADIUS
             weights += OPP_WEIGHT * np.sum(hood, axis=0)

@@ -12,7 +12,7 @@ class Memory:
         self.ships_built = 0
 
         self.ship_targets = []
-        self.protected = np.array([]).astype(int)
+        self.protected = np.array([], dtype=int)
         return
 
     def protection(self, state):

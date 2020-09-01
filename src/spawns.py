@@ -5,7 +5,7 @@ class Spawns:
 
         # positions of yards for which we can still decide actions
         yards = [state.my_yards[yard] for yard in actions.yards]
-        self.spawn_pos = np.array(yards).astype(int)
+        self.spawn_pos = np.array(yards, dtype=int)
 
         # sort yard positions by preference for spawning - spawn
         # where there are less of our own ships in the area

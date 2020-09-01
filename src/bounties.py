@@ -1,11 +1,11 @@
 class Bounties:
     def __init__(self, state):
-        self.ship_targets_pos = np.array([]).astype(int)
-        self.ship_targets_hal = np.array([]).astype(int)
-        self.ship_targets_rew = np.array([]).astype(int)
+        self.ship_targets_pos = np.array([], dtype=int)
+        self.ship_targets_hal = np.array([], dtype=int)
+        self.ship_targets_rew = np.array([], dtype=int)
 
-        self.yard_targets_pos = np.array([]).astype(int)
-        self.yard_targets_rew = np.array([]).astype(int)
+        self.yard_targets_pos = np.array([], dtype=int)
+        self.yard_targets_rew = np.array([], dtype=int)
 
         self.set_ship_targets(state)
         self.set_yard_targets(state)
@@ -40,10 +40,10 @@ class Bounties:
         # a graph with constant weights equal to mean_weight. a vulnerability
         # greater than one means we have hunters obstructing the path to the
         # nearest yard...
-        opp_ship_pos = np.array([]).astype(int)
-        opp_ship_hal = np.array([]).astype(int)
-        opp_ship_vul = np.array([]).astype(int)
-        opp_ship_dis = np.array([]).astype(int)
+        opp_ship_pos = np.array([], dtype=int)
+        opp_ship_hal = np.array([], dtype=int)
+        opp_ship_vul = np.array([], dtype=int)
+        opp_ship_dis = np.array([], dtype=int)
 
         for opp in state.opp_data.values():
             yards, ship_pos, ship_hal = opp[1:4]
@@ -70,7 +70,7 @@ class Bounties:
 
         # store current positions of previous targets that are still alive
         prev = np.array([val[0] for key, val in state.opp_ships.items()
-                         if key in memory.ship_targets]).astype(int)
+                         if key in memory.ship_targets], dtype=int)
 
         # get the indices of the ships that are already targeted
         # if a ship is too close to a friendly yard, it will probably escape
@@ -114,7 +114,7 @@ class Bounties:
         # set position/halite/rewards for the targets
         self.ship_targets_pos = opp_ship_pos[target_inds]
         self.ship_targets_hal = opp_ship_hal[target_inds]
-        self.ship_targets_rew = 500 * np.ones_like(self.ship_targets_pos)
+        self.ship_targets_rew = 1000 * np.ones_like(self.ship_targets_pos)
 
         # write the new targets in the ship_targets list
         memory.ship_targets = [key for key, val in state.opp_ships.items()
@@ -126,7 +126,7 @@ class Bounties:
         # always attack any yards that are too close to our own
         inds = np.ix_(state.my_yard_pos, state.opp_yard_pos)
         dists = np.min(state.dist[inds], axis=0, initial=state.map_size)
-        self.yard_targets_pos = state.opp_yard_pos[dists <= OPP_YARD_DIST]
+        self.yard_targets_pos = state.opp_yard_pos[dists <= 3]
 
         # we target the opponent whose score is closest to ours
         my_score = state.my_halite + np.sum(state.my_ship_hal)
@@ -162,7 +162,7 @@ class Bounties:
 
         # take 200 instead of 1000 here, so we prefer to target ships
         # and big halite cells
-        self.yard_targets_rew = 200 * np.ones_like(self.yard_targets_pos)
+        self.yard_targets_rew = 100 * np.ones_like(self.yard_targets_pos)
 
         return
 
@@ -183,8 +183,8 @@ class Bounties:
         # targets = np.append(targets, new_targets)
         # rewards = np.append(rewards, 1000 * np.ones_like(new_targets))
 
-        full_pos = np.array([]).astype(int)
-        full_rew = np.array([]).astype(int)
+        full_pos = np.array([], dtype=int)
+        full_rew = np.array([], dtype=int)
 
         # we put slightly lower bounties on the 4 sites adjacent to
         # the ship as well so that ships collapse on the target
@@ -209,7 +209,7 @@ class Bounties:
         # only hunt yards if we don't have any cargo or if its the
         # final phase of the game
         if hal > 0:
-            return np.array([]).astype(int), np.array([]).astype(int)
+            return np.array([], dtype=int), np.array([], dtype=int)
 
         # at the end of the game we want most ships to go after yards
         # but during the bulk of the game we don't want to lose too
