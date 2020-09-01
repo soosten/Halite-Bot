@@ -1,18 +1,15 @@
 class Bounties:
-    def __init__(self):
-        self.ship_targets = []
-        self.ship_targets_pos = np.array([]).astype(int)
-        self.ship_targets_hal = np.array([]).astype(int)
-        self.ship_targets_rew = np.array([]).astype(int)
+    def __init__(self, state):
+        self.ship_targets_pos = np.array([], dtype=int)
+        self.ship_targets_hal = np.array([], dtype=int)
+        self.ship_targets_rew = np.array([], dtype=int)
 
-        self.yard_targets_pos = np.array([]).astype(int)
-        self.yard_targets_rew = np.array([]).astype(int)
+        self.yard_targets_pos = np.array([], dtype=int)
+        self.yard_targets_rew = np.array([], dtype=int)
 
-        return
-
-    def update(self, state):
         self.set_ship_targets(state)
         self.set_yard_targets(state)
+
         return
 
     def set_ship_targets(self, state):
@@ -22,7 +19,7 @@ class Bounties:
         # positions of our hunters have higher weights.
         weights = np.ones_like(state.sites)
 
-        num_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
+        num_ships = state.my_ship_pos.size
         num_targets = num_ships // SHIPS_PER_BOUNTY
         num_hunters = 5 * num_targets
 
@@ -35,7 +32,7 @@ class Bounties:
             hood = state.dist[hunters_pos, :] <= HUNT_RADIUS
             weights += HUNT_WEIGHT * np.sum(hood, axis=0)
 
-        graph = targets.make_graph_csr(state, weights)
+        graph = self.make_graph_csr(state, weights)
 
         # calculate position, halite, and vulnerability for all opponent ships
         # vulnerability is the ratio of distance to the nearest friendly yard
@@ -43,10 +40,10 @@ class Bounties:
         # a graph with constant weights equal to mean_weight. a vulnerability
         # greater than one means we have hunters obstructing the path to the
         # nearest yard...
-        opp_ship_pos = np.array([]).astype(int)
-        opp_ship_hal = np.array([]).astype(int)
-        opp_ship_vul = np.array([]).astype(int)
-        opp_ship_dis = np.array([]).astype(int)
+        opp_ship_pos = np.array([], dtype=int)
+        opp_ship_hal = np.array([], dtype=int)
+        opp_ship_vul = np.array([], dtype=int)
+        opp_ship_dis = np.array([], dtype=int)
 
         for opp in state.opp_data.values():
             yards, ship_pos, ship_hal = opp[1:4]
@@ -73,7 +70,7 @@ class Bounties:
 
         # store current positions of previous targets that are still alive
         prev = np.array([val[0] for key, val in state.opp_ships.items()
-                         if key in self.ship_targets]).astype(int)
+                         if key in memory.ship_targets], dtype=int)
 
         # get the indices of the ships that are already targeted
         # if a ship is too close to a friendly yard, it will probably escape
@@ -97,7 +94,7 @@ class Bounties:
         # new targets we should/can build. we only set new targets if
         # there is not a lot of halite left that we can mine - however
         # we always hunt after the first part of the game
-        ratio = np.sum(state.halite_map) / state.config.startingHalite
+        ratio = np.sum(state.halite_map) / state.starting_halite
 
         if (ratio > HUNTING_MAX_RATIO) and (state.step < HUNTING_STEP):
             num_new_targets = 0
@@ -106,7 +103,7 @@ class Bounties:
             num_new_targets = min(num_new_targets, np.sum(candidates))
 
         # record new bounties in stats object
-        stats.total_bounties += num_new_targets
+        memory.total_bounties += num_new_targets
 
         # we can take those num_new_targets ships with maximum score
         # since scores are >= 0  and we forced the scores of non-candidate
@@ -120,19 +117,16 @@ class Bounties:
         self.ship_targets_rew = 1000 * np.ones_like(self.ship_targets_pos)
 
         # write the new targets in the ship_targets list
-        self.ship_targets = [key for key, val in state.opp_ships.items()
+        memory.ship_targets = [key for key, val in state.opp_ships.items()
                              if val[0] in self.ship_targets_pos]
 
         return
 
     def set_yard_targets(self, state):
         # always attack any yards that are too close to our own
-        if state.opp_yard_pos.size != 0:
-            inds = np.ix_(state.my_yard_pos, state.opp_yard_pos)
-            close = np.min(state.dist[inds], axis=0) <= OPP_YARD_DIST
-            self.yard_targets_pos = state.opp_yard_pos[close]
-        else:
-            self.yard_targets_pos = np.array([]).astype(int)
+        inds = np.ix_(state.my_yard_pos, state.opp_yard_pos)
+        dists = np.min(state.dist[inds], axis=0, initial=state.map_size)
+        self.yard_targets_pos = state.opp_yard_pos[dists <= 3]
 
         # we target the opponent whose score is closest to ours
         my_score = state.my_halite + np.sum(state.my_ship_hal)
@@ -140,20 +134,20 @@ class Bounties:
         closest = min(state.opp_scores, key=score_diff)
 
         # depending on how many ships we have compared to others
-        my_ships = np.setdiff1d(state.my_ship_pos, fifos.fifo_pos).size
-        max_opp_ships = max(state.opp_scores.values())
+        my_ships = state.my_ship_pos.size
+        max_opp_ships = max(state.opp_num_ships.values())
 
         # attack yards at the end of the game
         should_attack = (state.total_steps - state.step) < YARD_HUNTING_FINAL
 
         # or if we have a lot of ships
-        should_attack = should_attack or my_ships > max_opp_ships
+        should_attack = should_attack or (my_ships > max_opp_ships)
 
         # but stop attacking if we don't have a lot of ships anymore
-        should_attack = should_attack and my_ships >= YARD_HUNTING_MIN_SHIPS
+        should_attack = should_attack and (my_ships >= YARD_HUNTING_MIN_SHIPS)
 
         # and don't attack if its too early in the game
-        should_attack = should_attack and state.step > YARD_HUNTING_START
+        should_attack = should_attack and (state.step > YARD_HUNTING_START)
 
         if should_attack:
             opp_yards, opp_ships = state.opp_data[closest][1:3]
@@ -168,7 +162,7 @@ class Bounties:
 
         # take 200 instead of 1000 here, so we prefer to target ships
         # and big halite cells
-        self.yard_targets_rew = 200 * np.ones_like(self.yard_targets_pos)
+        self.yard_targets_rew = 100 * np.ones_like(self.yard_targets_pos)
 
         return
 
@@ -189,8 +183,8 @@ class Bounties:
         # targets = np.append(targets, new_targets)
         # rewards = np.append(rewards, 1000 * np.ones_like(new_targets))
 
-        full_pos = np.array([]).astype(int)
-        full_rew = np.array([]).astype(int)
+        full_pos = np.array([], dtype=int)
+        full_rew = np.array([], dtype=int)
 
         # we put slightly lower bounties on the 4 sites adjacent to
         # the ship as well so that ships collapse on the target
@@ -215,12 +209,34 @@ class Bounties:
         # only hunt yards if we don't have any cargo or if its the
         # final phase of the game
         if hal > 0:
-            return np.array([]).astype(int), np.array([]).astype(int)
+            return np.array([], dtype=int), np.array([], dtype=int)
 
         # at the end of the game we want most ships to go after yards
         # but during the bulk of the game we don't want to lose too
         # many ships due to shipyard hunting
-        radius = YARD_HUNTING_RADIUS + endgame * 6
+        radius = (YARD_HUNTING_RADIUS + 6) if endgame else YARD_HUNTING_RADIUS
         inds = state.dist[self.yard_targets_pos, pos] <= radius
 
         return self.yard_targets_pos[inds], self.yard_targets_rew[inds]
+
+    def make_graph_csr(self, state, weights):
+        nsites = state.map_size ** 2
+
+        # weight at any edge (x,y) is (w[x] + w[y])/2
+        # column indices for row i are in indices[indptr[i]:indptr[i+1]]
+        # and their corresponding values are in data[indptr[i]:indptr[i+1]]
+        indptr = 4 * np.append(state.sites, nsites)
+
+        indices = np.empty(4 * nsites, dtype=int)
+        indices[0::4] = state.north
+        indices[1::4] = state.south
+        indices[2::4] = state.east
+        indices[3::4] = state.west
+
+        data = np.empty(4 * nsites, dtype=float)
+        data[0::4] = 0.5 * (weights + weights[state.north])
+        data[1::4] = 0.5 * (weights + weights[state.south])
+        data[2::4] = 0.5 * (weights + weights[state.east])
+        data[3::4] = 0.5 * (weights + weights[state.west])
+
+        return csr_matrix((data, indices, indptr), shape=(nsites, nsites))
