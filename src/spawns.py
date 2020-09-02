@@ -1,7 +1,7 @@
 import numpy as np
 
-from settings import SPAWNING_STEP, STEPS_FINAL, MIN_SHIPS, SPAWNING_OFFSET, \
-                     YARD_SCHEDULE
+from settings import (SPAWNING_STEP, STEPS_FINAL, MIN_SHIPS, SPAWNING_OFFSET,
+                      YARD_SCHEDULE)
 
 
 class Spawns:
@@ -47,7 +47,7 @@ class Spawns:
         new_ships = max(bound, new_ships)
 
         # spawn if we there is a lot of time left
-        bound = YARD_SCHEDULE.size * (state.step < SPAWNING_STEP)
+        bound = len(YARD_SCHEDULE) * (state.step < SPAWNING_STEP)
         new_ships = max(bound, new_ships)
 
         # don't spawn if its no longer worth it and we have a few ships

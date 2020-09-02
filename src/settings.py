@@ -1,5 +1,3 @@
-import numpy as np
-
 # graph weights
 MY_WEIGHT = 1
 MY_RADIUS = 1
@@ -13,7 +11,7 @@ YARD_DIST = 6
 OPP_YARD_DIST = 5
 YARD_RADIUS = 4
 MIN_CELLS = 15
-YARD_SCHEDULE = np.array([0, 9, 40])
+YARD_SCHEDULE = [0, 9, 40]
 YARD_MAX_STEP = 300
 YARD_PROTECTION = True
 MIN_SHIPS = 15

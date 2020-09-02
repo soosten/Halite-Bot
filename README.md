@@ -5,7 +5,7 @@ This repository contains the source code of a bot for the fourth season of [Hali
 
 
 ### Dependencies
-The bot depends only on standard libraries and the SciPy stack. However, the script `build.py` requires the `kaggle_environments` package to run and render the simulations locally. It also requires the Kaggle CLI and valid credentials to upload the submission to the Kaggle competition (see [here](https://github.com/Kaggle/kaggle-api)). These requirements can be installed with
+The bot depends only on standard libraries and SciPy. However, the script `build.py` requires the `kaggle_environments` package to run and render the simulations locally. It also requires the Kaggle CLI and valid credentials to upload the submission to the Kaggle competition (see [here](https://github.com/Kaggle/kaggle-api)). These requirements can be installed with
 
 `pip install kaggle`
 

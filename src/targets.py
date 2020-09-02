@@ -3,9 +3,9 @@ from scipy.optimize import linear_sum_assignment as assignment
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 
-from settings import BASELINE_SHIP_RATE, BASELINE_YARD_RATE, STEPS_INITIAL, \
-                     STEPS_SPIKE, RISK_PREMIUM, SPIKE_PREMIUM, MY_RADIUS, \
-                     MY_WEIGHT, OPP_RADIUS, OPP_WEIGHT
+from settings import (BASELINE_SHIP_RATE, BASELINE_YARD_RATE, STEPS_INITIAL,
+                      STEPS_SPIKE, RISK_PREMIUM, SPIKE_PREMIUM, MY_RADIUS,
+                      MY_WEIGHT, OPP_RADIUS, OPP_WEIGHT)
 
 
 class Targets:

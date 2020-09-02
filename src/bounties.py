@@ -2,9 +2,9 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 
-from settings import SHIPS_PER_BOUNTY, HUNTING_MAX_RATIO, HUNTING_STEP, \
-                     YARD_HUNTING_FINAL, YARD_HUNTING_MIN_SHIPS, HUNT_WEIGHT, \
-                     YARD_HUNTING_START, YARD_HUNTING_RADIUS, HUNT_RADIUS
+from settings import (SHIPS_PER_BOUNTY, HUNTING_MAX_RATIO, HUNTING_STEP,
+                      YARD_HUNTING_FINAL, YARD_HUNTING_MIN_SHIPS, HUNT_WEIGHT,
+                      YARD_HUNTING_START, YARD_HUNTING_RADIUS, HUNT_RADIUS)
 
 
 class Bounties:

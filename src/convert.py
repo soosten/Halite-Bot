@@ -1,7 +1,7 @@
 import numpy as np
 
-from settings import YARD_SCHEDULE, YARD_MAX_STEP, YARD_RADIUS, \
-                     YARD_DIST, OPP_YARD_DIST, MIN_CELLS
+from settings import (YARD_SCHEDULE, YARD_MAX_STEP, YARD_RADIUS,
+                      YARD_DIST, OPP_YARD_DIST, MIN_CELLS)
 
 
 def convert(state, actions):
@@ -30,7 +30,8 @@ def convert(state, actions):
 
     # otherwise, we convert a ship if we have too few yards for our ships
     # and it is not too late in the game, provided we have ships
-    yards_wanted = np.sum(state.my_ship_pos.size >= YARD_SCHEDULE)
+    num_ships = state.my_ship_pos.size
+    yards_wanted = sum([x <= num_ships for x in YARD_SCHEDULE])
     should_convert = (state.my_yard_pos.size < yards_wanted)
     should_convert = should_convert and (state.step < YARD_MAX_STEP)
     should_convert = should_convert and (len(actions.ships) > 0)
