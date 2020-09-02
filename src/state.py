@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class State:
     def __init__(self, obs, config):
         # read game configuration

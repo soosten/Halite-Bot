@@ -1,3 +1,9 @@
+from copy import deepcopy
+import numpy as np
+
+from settings import STEPS_SPIKE, YARD_PROTECTION
+
+
 class Memory:
     def __init__(self):
         self.last_state = None

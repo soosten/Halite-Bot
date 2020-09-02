@@ -1,3 +1,9 @@
+import numpy as np
+
+from settings import YARD_SCHEDULE, YARD_MAX_STEP, YARD_RADIUS, \
+                     YARD_DIST, OPP_YARD_DIST, MIN_CELLS
+
+
 def convert(state, actions):
     # returns True if CONVERT is a legal action for ship - need to have enough
     # halite and not be on another yard. if you only have one ship, you can

@@ -1,5 +1,15 @@
+import numpy as np
+from scipy.optimize import linear_sum_assignment as assignment
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import dijkstra
+
+from settings import BASELINE_SHIP_RATE, BASELINE_YARD_RATE, STEPS_INITIAL, \
+                     STEPS_SPIKE, RISK_PREMIUM, SPIKE_PREMIUM, MY_RADIUS, \
+                     MY_WEIGHT, OPP_RADIUS, OPP_WEIGHT
+
+
 class Targets:
-    def __init__(self, state, actions, bounties, spawns):
+    def __init__(self, state, actions, bounties, spawns, memory):
         self.num_ships = len(actions.ships)
 
         # if there are no ships, there is nothing to do
@@ -53,9 +63,6 @@ class Targets:
 
         SR = BASELINE_SHIP_RATE
         YR = BASELINE_YARD_RATE
-        MR = BASELINE_MINE_RATE
-
-        # MR = 0.04 if (state.step > STEPS_INITIAL) else 0.02
 
         # add a premium if there are a lot of ships that can attack us
         inds = state.opp_ship_hal < hal
@@ -77,10 +84,9 @@ class Targets:
         # make sure all rates are < 1 so formulas remain stable
         SR = min(SR, 0.9)
         YR = min(YR, 0.9)
-        MR = min(MR, 0.9)
         HR = min(HR, 0.9)
 
-        return SR, YR, MR, HR
+        return SR, YR, HR
 
     def rewards(self, ship, state, bounties):
         pos, hal = state.my_ships[ship]
@@ -92,7 +98,7 @@ class Targets:
         ship_dists = ship_dists[pos_ind, :]
 
         # determine ship rate, yard rate, and hunting rate
-        SR, YR, MR, HR = self.rates(state, ship)
+        SR, YR, HR = self.rates(state, ship)
 
         # add rewards for mining at all minable sites
         # see notes for explanation of these quantities
@@ -117,12 +123,11 @@ class Targets:
         F2 = F2 / F
 
         with np.errstate(divide='ignore'):
-            M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + MR))
-
+            M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + YR))
 
         M = np.fmax(1, np.round(M / np.log(X)))
 
-        reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + MR) ** M)
+        reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + YR) ** M)
 
         # add rewards at yard for depositing halite
         ship_yard_dist = ship_dists[state.my_yard_pos]
@@ -195,7 +200,7 @@ class Targets:
             weights += MY_WEIGHT * np.sum(hood, axis=0)
 
         # only consider opponent ships with less halite
-        threats = state.opp_ship_pos[state.opp_ship_hal < hal]
+        threats = state.opp_ship_pos[state.opp_ship_hal <= hal]
         if threats.size != 0:
             hood = state.dist[threats, :] <= OPP_RADIUS
             weights += OPP_WEIGHT * np.sum(hood, axis=0)

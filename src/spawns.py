@@ -1,3 +1,9 @@
+import numpy as np
+
+from settings import SPAWNING_STEP, STEPS_FINAL, MIN_SHIPS, SPAWNING_OFFSET, \
+                     YARD_SCHEDULE
+
+
 class Spawns:
     def __init__(self, state, actions):
         # determine how many ships to build

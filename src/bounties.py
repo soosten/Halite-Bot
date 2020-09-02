@@ -1,5 +1,14 @@
+import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import dijkstra
+
+from settings import SHIPS_PER_BOUNTY, HUNTING_MAX_RATIO, HUNTING_STEP, \
+                     YARD_HUNTING_FINAL, YARD_HUNTING_MIN_SHIPS, HUNT_WEIGHT, \
+                     YARD_HUNTING_START, YARD_HUNTING_RADIUS, HUNT_RADIUS
+
+
 class Bounties:
-    def __init__(self, state):
+    def __init__(self, state, memory):
         self.ship_targets_pos = np.array([], dtype=int)
         self.ship_targets_hal = np.array([], dtype=int)
         self.ship_targets_rew = np.array([], dtype=int)
@@ -7,12 +16,12 @@ class Bounties:
         self.yard_targets_pos = np.array([], dtype=int)
         self.yard_targets_rew = np.array([], dtype=int)
 
-        self.set_ship_targets(state)
+        self.set_ship_targets(state, memory)
         self.set_yard_targets(state)
 
         return
 
-    def set_ship_targets(self, state):
+    def set_ship_targets(self, state, memory):
         # we choose new targets from a pool of opponent ships. to select the
         # new targets we consider a score composed of "vulnerability" and
         # cargo. to measure vulnerability, we construct a graph where the

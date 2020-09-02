@@ -20,6 +20,8 @@ The script `build.py` has functions to build a valid submission, play locally ag
 [Dijkstra's algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm)
 [Hungarian algorithm](https://en.wikipedia.org/wiki/Hungarian_algorithm)
 
+max_M (C + \alpha (1-X)^M H) / (1 + SR)^SD (1 + YR)^(M+YD)
+
 ### Overview of the code
 An entry to the competition consists of a file `submission.py`, which is processed by the Kaggle environment in the following way:
 1. The very last function in the file is called at every turn. It is passed the game state in `(obs, config)` and is expected to return a legal list of actions to take for that turn.
