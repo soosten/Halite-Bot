@@ -1,3 +1,7 @@
+# add location of source files on kaggle server to python path
+import sys
+sys.path.append("/kaggle_simulations/agent")
+
 from actions import Actions
 from bounties import Bounties
 from convert import convert
