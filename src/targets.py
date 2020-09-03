@@ -5,7 +5,7 @@ from scipy.sparse.csgraph import dijkstra
 
 from settings import (BASELINE_SHIP_RATE, BASELINE_YARD_RATE, STEPS_INITIAL,
                       STEPS_SPIKE, RISK_PREMIUM, SPIKE_PREMIUM, MY_RADIUS,
-                      MY_WEIGHT, OPP_RADIUS, OPP_WEIGHT)
+                      MY_WEIGHT, OPP_RADIUS, OPP_WEIGHT, BASELINE_MINE_RATE)
 
 
 class Targets:
@@ -63,14 +63,22 @@ class Targets:
 
         SR = BASELINE_SHIP_RATE
         YR = BASELINE_YARD_RATE
+        MR = BASELINE_MINE_RATE
 
         # add a premium if there are a lot of ships that can attack us
-        inds = state.opp_ship_hal < hal
+        threats = (state.opp_ship_hal < hal)
 
-        # FIX UP MORE
+        # if state.my_yard_pos.size != 0:
+        #     yard_ind = np.argmin(state.dist[state.my_yard_pos, pos])
+        #     yard_pos = state.my_yard_pos[yard_ind]
+        #     radius = 10  #state.dist[yard_pos, pos]
+        #     yard_ball = (state.dist[state.opp_ship_pos, yard_pos] <= radius)
+        #     ship_ball = (state.dist[state.opp_ship_pos, pos] <= radius)
+        #     threats = threats & ship_ball  # (yard_ball | ship_ball)
+
         if state.step > STEPS_INITIAL:
-            YR += RISK_PREMIUM * np.sum(inds)
-            SR += RISK_PREMIUM * np.sum(inds)
+            YR += RISK_PREMIUM * np.sum(threats)
+            SR += RISK_PREMIUM * np.sum(threats)
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:
@@ -86,7 +94,7 @@ class Targets:
         YR = min(YR, 0.9)
         HR = min(HR, 0.9)
 
-        return SR, YR, HR
+        return SR, YR, MR, HR
 
     def rewards(self, ship, state, bounties):
         pos, hal = state.my_ships[ship]
@@ -98,7 +106,7 @@ class Targets:
         ship_dists = ship_dists[pos_ind, :]
 
         # determine ship rate, yard rate, and hunting rate
-        SR, YR, HR = self.rates(state, ship)
+        SR, YR, MR, HR = self.rates(state, ship)
 
         # add rewards for mining at all minable sites
         # see notes for explanation of these quantities
@@ -123,11 +131,11 @@ class Targets:
         F2 = F2 / F
 
         with np.errstate(divide='ignore'):
-            M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + YR))
+            M = np.log(1 + F1 / F2) - np.log(1 - np.log(X) / np.log(1 + MR))
 
         M = np.fmax(1, np.round(M / np.log(X)))
 
-        reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + YR) ** M)
+        reward_map[minable] = (F1 + F2 * (1 - X ** M)) / ((1 + MR) ** M)
 
         # add rewards at yard for depositing halite
         ship_yard_dist = ship_dists[state.my_yard_pos]
@@ -167,8 +175,7 @@ class Targets:
             self.moves[ship] = np.flatnonzero(state.dist[pos, :] <= 1)
 
             # construct a weighted graph to calculate distances on
-            weights = self.make_weights(ship, state)
-            graph = self.make_graph_csr(state, weights)
+            graph = self.make_graph(ship, state)
 
             # distance to each site after making a move
             self.move_dists[ship] = dijkstra(graph, indices=self.moves[ship])
@@ -186,7 +193,7 @@ class Targets:
 
         return
 
-    def make_weights(self, actor, state):
+    def make_graph(self, actor, state):
         pos, hal = state.my_ships[actor]
         weights = np.ones_like(state.sites)
 
@@ -200,7 +207,7 @@ class Targets:
             weights += MY_WEIGHT * np.sum(hood, axis=0)
 
         # only consider opponent ships with less halite
-        threats = state.opp_ship_pos[state.opp_ship_hal <= hal]
+        threats = state.opp_ship_pos[state.opp_ship_hal < hal]
         if threats.size != 0:
             hood = state.dist[threats, :] <= OPP_RADIUS
             weights += OPP_WEIGHT * np.sum(hood, axis=0)
@@ -211,10 +218,6 @@ class Targets:
         # remove any weights on the yards so these don't get blocked
         weights[state.my_yard_pos] = 0
 
-        return weights
-
-    def make_graph_csr(self, state, weights):
-        # weight at any edge (x,y) is (w[x] + w[y])/2
         # column indices for row i are in indices[indptr[i]:indptr[i+1]]
         # and their corresponding values are in data[indptr[i]:indptr[i+1]]
         nsites = state.map_size ** 2
@@ -226,6 +229,7 @@ class Targets:
         indices[2::4] = state.east
         indices[3::4] = state.west
 
+        # weight at any edge (x,y) is (w[x] + w[y])/2
         data = np.empty(4 * nsites, dtype=float)
         data[0::4] = 0.5 * (weights + weights[state.north])
         data[1::4] = 0.5 * (weights + weights[state.south])

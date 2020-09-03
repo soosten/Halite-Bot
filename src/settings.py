@@ -31,7 +31,8 @@ YARD_HUNTING_RADIUS = 6
 # rate options
 STEPS_SPIKE = 25  # steps remaining before spike is added
 SPIKE_PREMIUM = 0.5  # spike to deposit everything at the end
-RISK_PREMIUM = 0.01  # gets added for each threat within radius RISK_RADIUS
+RISK_PREMIUM = 0.02  # gets added for each threat within radius RISK_RADIUS
 STEPS_INITIAL = 50  # don't add risk before this step
 BASELINE_SHIP_RATE = 0.08  # tendency to visit more sites
 BASELINE_YARD_RATE = 0.02  # tendency to go to yard / mine for less time
+BASELINE_MINE_RATE = 0.04  # how long to mine cells for
