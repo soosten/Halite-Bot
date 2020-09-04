@@ -25,7 +25,7 @@ def main():
 
     # uncomment to upload submission.py to kaggle competition
     # assumes kaggle CLI is installed with proper credentials
-    # submit(path, "#56 - ")
+    # submit(path, "#61 - ")
 
     print("\nDone.")
     return
@@ -38,10 +38,10 @@ def run(path, agents, steps=400, seed=None):
 
     # get a halite simulator from kaggle environments and run the simulation
     if seed is not None:
-        print(f"\nRunning for {steps} steps with seed = {seed}...\n\n")
+        print(f"Running for {steps} steps with seed = {seed}...\n\n")
         config = {"randomSeed": seed, "episodeSteps": steps}
     else:
-        print(f"\nRunning for {steps} steps...\n\n")
+        print(f"Running for {steps} steps...\n\n")
         config = {"episodeSteps": steps}
 
     halite = make("halite", debug=True, configuration=config)
