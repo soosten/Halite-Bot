@@ -4,7 +4,8 @@ from scipy.sparse.csgraph import dijkstra
 
 from settings import (SHIPS_PER_BOUNTY, HUNTING_MAX_RATIO, HUNTING_STEP,
                       YARD_HUNTING_FINAL, YARD_HUNTING_MIN_SHIPS, HUNT_WEIGHT,
-                      YARD_HUNTING_START, YARD_HUNTING_RADIUS, HUNT_RADIUS)
+                      YARD_HUNTING_START, YARD_HUNTING_RADIUS, HUNT_RADIUS,
+                      HUNT_NEARBY, STEPS_SPIKE)
 
 
 class Bounties:
@@ -91,7 +92,7 @@ class Bounties:
         # that are trapped (vulnerability > 1), have at least one hunter
         # nearby, and aren't too close to a friendly yard
         candidates = ~target_bool & (opp_ship_vul > 1)
-        candidates &= (opp_ship_dis >= 3) & (nearby >= 1)
+        candidates &= (opp_ship_dis >= 3) & (nearby >= HUNT_NEARBY)
 
         # we compute scores for each of the candidate ships indicating
         # the risk/reward of attacking them
@@ -133,9 +134,9 @@ class Bounties:
 
     def set_yard_targets(self, state):
         # always attack any yards that are too close to our own
-        inds = np.ix_(state.my_yard_pos, state.opp_yard_pos)
-        dists = np.min(state.dist[inds], axis=0, initial=state.map_size)
-        self.yard_targets_pos = state.opp_yard_pos[dists <= 3]
+        # inds = np.ix_(state.my_yard_pos, state.opp_yard_pos)
+        # dists = np.min(state.dist[inds], axis=0, initial=state.map_size)
+        # self.yard_targets_pos = state.opp_yard_pos[dists <= 3]
 
         # we target the opponent whose score is closest to ours
         my_score = state.my_halite + np.sum(state.my_ship_hal)
@@ -166,8 +167,9 @@ class Bounties:
             if state.total_steps - state.step > YARD_HUNTING_FINAL:
                 opp_yards = np.setdiff1d(opp_yards, opp_ships)
 
-            self.yard_targets_pos = np.union1d(self.yard_targets_pos,
-                                               opp_yards)
+            self.yard_targets_pos = opp_yards
+            # self.yard_targets_pos = np.union1d(self.yard_targets_pos,
+            #                                    opp_yards)
 
         # take 200 instead of 1000 here, so we prefer to target ships
         # and big halite cells
@@ -176,6 +178,10 @@ class Bounties:
         return
 
     def get_ship_targets(self, actor, state):
+        # stop hunting ships after the interest rate spike
+        if state.total_steps - state.step < STEPS_SPIKE:
+            return np.array([], dtype=int), np.array([], dtype=int)
+
         pos, hal = state.my_ships[actor]
 
         # find targets that we can attack

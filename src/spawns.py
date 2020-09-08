@@ -5,7 +5,7 @@ from settings import (SPAWNING_STEP, STEPS_FINAL, MIN_SHIPS, SPAWNING_OFFSET,
 
 
 class Spawns:
-    def __init__(self, state, actions):
+    def __init__(self, state, actions, memory):
         # determine how many ships to build
         self.num_ships(state, actions)
 
@@ -15,9 +15,11 @@ class Spawns:
 
         # sort yard positions by preference for spawning - spawn
         # where there are less of our own ships in the area
+        # but strongly prefer not to spawn at abandoned yards
         inds = np.ix_(state.my_ship_pos, self.spawn_pos)
         traffic = np.sum(state.dist[inds] <= 3, axis=0, initial=0)
-        self.spawn_pos = self.spawn_pos[traffic.argsort()]
+        score = traffic + 10 * np.in1d(self.spawn_pos, memory.abandoned)
+        self.spawn_pos = self.spawn_pos[score.argsort()]
         return
 
     def num_ships(self, state, actions):

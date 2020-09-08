@@ -1,7 +1,7 @@
 from copy import deepcopy
 import numpy as np
 
-from settings import STEPS_SPIKE, YARD_PROTECTION
+from settings import STEPS_SPIKE
 
 
 class Memory:
@@ -18,22 +18,29 @@ class Memory:
         self.ships_built = 0
 
         self.ship_targets = []
+
         self.protected = np.array([], dtype=int)
+        self.abandoned = np.array([], dtype=int)
         return
 
-    def protection(self, state):
-        # only add protected yards if settings say so
-        if not YARD_PROTECTION:
-            return
-
-        # remove any protected yards that may have been destroyed
+    def shipyards(self, state):
+        # remove any yards that may have been destroyed
         self.protected = np.intersect1d(self.protected, state.my_yard_pos)
+        self.abandoned = np.intersect1d(self.abandoned, state.my_yard_pos)
 
-        # protects yards if any opponent ship gets within distance 2
+        # protect yards if any opponent ship gets within distance 2
         inds = np.ix_(state.opp_ship_pos, state.my_yard_pos)
         dist = np.amin(state.dist[inds], axis=0, initial=state.map_size)
         yards = state.my_yard_pos[dist <= 2]
         self.protected = np.union1d(self.protected, yards)
+
+        # abandon yards too close to opponent yards
+        inds = np.ix_(state.opp_yard_pos, state.my_yard_pos)
+        dists = np.min(state.dist[inds], axis=0, initial=state.map_size)
+        self.abandoned = state.my_yard_pos[dists <= 3]
+
+        # stop protecting abandoned yards
+        self.protected = np.setdiff1d(self.protected, self.abandoned)
         return
 
     def statistics(self, state):

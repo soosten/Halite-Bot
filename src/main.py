@@ -24,8 +24,8 @@ def agent(obs, config):
     # update statistics we track across all turns
     memory.statistics(state)
 
-    # update which shipyards should be protected
-    memory.protection(state)
+    # update which shipyards should be protected or abandoned
+    memory.shipyards(state)
 
     # actions object stores a list of pending ships/yards. as we decide on
     # actions, we remove the ships/yards from the pending lists and store
@@ -33,10 +33,10 @@ def agent(obs, config):
     actions = Actions(state)
 
     # convert appropriate ships into yards
-    convert(state, actions)
+    convert(state, actions, memory)
 
     # plan where we want to spawn new ships
-    spawns = Spawns(state, actions)
+    spawns = Spawns(state, actions, memory)
 
     # place bounties on selected opponent ships/yards
     bounties = Bounties(state, memory)
@@ -46,7 +46,7 @@ def agent(obs, config):
     targets = Targets(state, actions, bounties, spawns, memory)
 
     # decide on moves for ships
-    move(state, actions, targets)
+    move(state, actions, targets, memory)
 
     # spawn the new ships at unoccupied shipyards
     spawns.spawn(state, actions)

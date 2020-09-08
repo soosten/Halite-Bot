@@ -4,7 +4,7 @@ from scipy.optimize import linear_sum_assignment as assignment
 from settings import STEPS_SPIKE
 
 
-def move(state, actions, targets):
+def move(state, actions, targets, memory):
     # if there are no ships pending, there is nothing to do
     if len(actions.ships) == 0:
         return
@@ -34,9 +34,11 @@ def move(state, actions, targets):
         pos, hal = state.my_ships[ship]
 
         # if the ship was assigned to an unsafe site, decide on a move later
+        # unless the site is a protected yard
         if infinite[ship_ind, site] or threats[ship_ind, site]:
-            threatened.append(ship_ind)
-            continue
+            if site not in memory.protected:
+                threatened.append(ship_ind)
+                continue
 
         # if the ship is depositing after the interest spike and
         # there is traffic at the yard, move freely
@@ -65,6 +67,7 @@ def move(state, actions, targets):
         weak_opp_col = weak_threats[ship_ind, :]
 
         # ideally, don't collide with opponents or our own ships
+        opp_col_flag = False
         exclude = illegal | self_col | weak_opp_col
 
         # if this is impossible, don't collide with opponents
@@ -73,13 +76,14 @@ def move(state, actions, targets):
 
         # if this is impossible, don't collide with our own ships
         if np.sum(~exclude) == 0:
+            opp_col_flag = True
             exclude = illegal | self_col
 
         # otherwise just make a move
         if np.sum(~exclude) == 0:
             exclude = illegal
 
-        # in most of these situations, staying put is a exclude move
+        # in most of these situations, staying put is a bad move
         # we could get lucky escaping other ships
         if np.sum(~exclude) >= 2:
             exclude[pos] = True
@@ -89,8 +93,13 @@ def move(state, actions, targets):
         ranking = targets.moves[ship]
         ind = np.in1d(ranking, candidates).argmax()
         site = ranking[ind]
-
         decision = state.pos_to_move(pos, site)
+
+        # if we don't have any safe squares to go to, and more cargo
+        # than it cost to convert, convert and keep the difference
+        if opp_col_flag and (hal >= state.convert_cost):
+            decision = "CONVERT"
+
         actions.decided[ship] = decision
         state.update(ship, decision)
 
@@ -126,7 +135,15 @@ def matrices(state, actions, targets):
     dims = (len(actions.ships), state.map_size ** 2)
     threat_matrix = np.zeros(dims, dtype=bool)
     weak_threat_matrix = np.zeros(dims, dtype=bool)
-    cost_matrix = np.zeros(dims, dtype=float)
+    cost_matrix = np.zeros(dims)
+
+    dists_to_dest = np.zeros(len(actions.ships))
+
+    for index in range(len(actions.ships)):
+        ship = actions.ships[index]
+        pos, hal = state.my_ships[ship]
+        dest = targets.destinations[ship]
+        dists_to_dest[index] = state.dist[pos, dest]
 
     # construct cost_matrix and threat_matrix
     for index in range(len(actions.ships)):
@@ -136,7 +153,7 @@ def matrices(state, actions, targets):
 
         yard_dist = np.amin(state.dist[state.my_yard_pos, pos], axis=0,
                             initial=state.map_size)
-        strict = (yard_dist > 2) or (hal > 0)
+        strict = (yard_dist > 1) or (hal > 0)
 
         # find those ships that have less halite than we do
         # add 1 to hal if we want to have a strict halite comparison
@@ -183,6 +200,11 @@ def matrices(state, actions, targets):
         else:
             rank = np.sum(hal > state.my_ship_hal)
             multiplier = 1 + rank / state.my_ship_hal.size
+
+        # break ties by distance to destination
+        dist = dists_to_dest[index]
+        rank = np.sum(dist < dists_to_dest)
+        multiplier += (1 + rank / dists_to_dest.size) / 10
 
         # multiplier = 1 + np.sum(value > ship_values) / ship_values.size
         cost_matrix[index, :] = multiplier * cost_matrix[index, :]
