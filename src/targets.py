@@ -3,24 +3,35 @@ from scipy.optimize import linear_sum_assignment as assignment
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 
+from convert import working_yards
 from settings import (BASELINE_SHIP_RATE, BASELINE_YARD_RATE, STEPS_INITIAL,
                       STEPS_SPIKE, RISK_PREMIUM, SPIKE_PREMIUM, MY_RADIUS,
-                      MY_WEIGHT, OPP_RADIUS, OPP_WEIGHT)
+                      MY_WEIGHT, OPP_RADIUS, OPP_WEIGHT, STEPS_FINAL)
 
 
 class Targets:
-    def __init__(self, state, actions, bounties, spawns, memory):
+    def __init__(self, state, actions, bounties, spawns):
         self.num_ships = len(actions.ships)
 
         # if there are no ships, there is nothing to do
         if self.num_ships == 0:
             return
 
-        # read relevant spawning information
-        self.spawns_wanted = spawns.ships_wanted
-        self.spawns_possible = spawns.ships_possible
-        likely_spawns = spawns.spawn_pos[0:self.spawns_possible]
-        self.protected = np.setdiff1d(memory.protected, likely_spawns)
+        # determine which yards need a ship to come back to protect them
+        likely_spawns = spawns.spawn_pos[0:spawns.ships_possible]
+        yards = np.setdiff1d(working_yards(state), likely_spawns)
+
+        inds = np.ix_(state.opp_ship_pos, yards)
+        opp_ship_dist = np.amin(state.dist[inds], axis=0,
+                                initial=state.map_size)
+
+        inds = np.ix_(state.my_ship_pos, yards)
+        my_ship_dist = np.amin(state.dist[inds], axis=0,
+                                initial=state.map_size)
+
+        inds = opp_ship_dist <= (2 + my_ship_dist)
+        self.protected = yards[inds]
+        self.radii = opp_ship_dist[inds]
 
         # set up candidate moves for each ship and compute
         # distances on an appropriately weighted graph
@@ -64,20 +75,15 @@ class Targets:
         SR = BASELINE_SHIP_RATE
         YR = BASELINE_YARD_RATE
 
-        # add a premium if there are a lot of ships that can attack us
         threats = (state.opp_ship_hal < hal)
 
-        # if state.my_yard_pos.size != 0:
-        #     yard_ind = np.argmin(state.dist[state.my_yard_pos, pos])
-        #     yard_pos = state.my_yard_pos[yard_ind]
-        #     radius = 10  #state.dist[yard_pos, pos]
-        #     yard_ball = (state.dist[state.opp_ship_pos, yard_pos] <= radius)
-        #     ship_ball = (state.dist[state.opp_ship_pos, pos] <= radius)
-        #     threats = threats & ship_ball  # (yard_ball | ship_ball)
+        if state.step < STEPS_INITIAL:
+            YR += 0.01
+            SR += 0.01
+            threats &= (state.dist[state.opp_ship_pos, pos] <= 4)
 
-        if state.step > STEPS_INITIAL:
-            YR += RISK_PREMIUM * np.sum(threats)
-            SR += RISK_PREMIUM * np.sum(threats)
+        YR += RISK_PREMIUM * np.sum(threats)
+        SR += RISK_PREMIUM * np.sum(threats)
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:
@@ -142,12 +148,13 @@ class Targets:
 
         # insert bounties for opponent ships
         ship_hunt_pos, ship_hunt_rew = bounties.get_ship_targets(ship, state)
-        discount = (1 + HR) ** ship_dists[ship_hunt_pos]
+        discount = (1 + SR) ** ship_dists[ship_hunt_pos]
+        discount = discount * (1 + YR) ** self.yard_dists[ship][ship_hunt_pos]
         reward_map[ship_hunt_pos] = ship_hunt_rew / discount
 
-        # insert bounties for opponent yards
+        reward_map[state.opp_yard_pos] = 0
         yard_hunt_pos, yard_hunt_rew = bounties.get_yard_targets(ship, state)
-        discount = (1 + HR) ** ship_dists[yard_hunt_pos]
+        discount = (1 + SR) ** ship_dists[yard_hunt_pos]
         reward_map[yard_hunt_pos] = yard_hunt_rew / discount
 
         # copy the ship yard rewards onto the duplicate ship yards and
@@ -155,12 +162,12 @@ class Targets:
         yard_rewards = reward_map[state.my_yard_pos]
         duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
 
-        # finally put a large bonus on going to any protected yards that
+        # put a large bonus on going to any protected yards that
         # the ships is next to - this ensures one close ship always
         # chooses the yard - but don't copy this bonus on the duplicates
         # since only one ship needs to be there
-        inds = state.dist[self.protected, pos] <= 1
-        reward_map[self.protected[inds]] += 1000
+        inds = state.dist[self.protected, pos] < self.radii
+        reward_map[self.protected[inds]] += 2000
 
         return np.append(duplicate_rewards, reward_map)
 
@@ -201,15 +208,13 @@ class Targets:
         # also ignore weights of any ships on yards
         friendly = np.setdiff1d(state.my_ship_pos, state.my_yard_pos)
         friendly = friendly[state.dist[pos, friendly] > 1]
-        if friendly.size != 0:
-            hood = state.dist[friendly, :] <= MY_RADIUS
-            weights += MY_WEIGHT * np.sum(hood, axis=0)
+        hood = state.dist[friendly, :] <= MY_RADIUS
+        weights += MY_WEIGHT * np.sum(hood, axis=0, initial=0)
 
         # only consider opponent ships with less halite
         threats = state.opp_ship_pos[state.opp_ship_hal < hal]
-        if threats.size != 0:
-            hood = state.dist[threats, :] <= OPP_RADIUS
-            weights += OPP_WEIGHT * np.sum(hood, axis=0)
+        hood = state.dist[threats, :] <= OPP_RADIUS
+        weights += OPP_WEIGHT * np.sum(hood, axis=0, initial=0)
 
         # also need to go around enemy shipyards
         weights[state.opp_yard_pos] += OPP_WEIGHT

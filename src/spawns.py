@@ -1,11 +1,12 @@
 import numpy as np
 
+from convert import working_yards
 from settings import (SPAWNING_STEP, STEPS_FINAL, MIN_SHIPS, SPAWNING_OFFSET,
                       YARD_SCHEDULE)
 
 
 class Spawns:
-    def __init__(self, state, actions, memory):
+    def __init__(self, state, actions):
         # determine how many ships to build
         self.num_ships(state, actions)
 
@@ -18,7 +19,8 @@ class Spawns:
         # but strongly prefer not to spawn at abandoned yards
         inds = np.ix_(state.my_ship_pos, self.spawn_pos)
         traffic = np.sum(state.dist[inds] <= 3, axis=0, initial=0)
-        score = traffic + 10 * np.in1d(self.spawn_pos, memory.abandoned)
+        not_working = ~np.in1d(self.spawn_pos, working_yards(state))
+        score = traffic + 10 * not_working.astype(int)
         self.spawn_pos = self.spawn_pos[score.argsort()]
         return
 
@@ -27,8 +29,15 @@ class Spawns:
         # number of ships and score = halite + cargo
         ships = state.my_ship_pos.size
         score = state.my_halite + np.sum(state.my_ship_hal)
-        max_opp_ships = max(state.opp_num_ships.values())
-        max_opp_score = max(state.opp_scores.values())
+
+        # toward the end of the game we ignore opponents with way more
+        # ships than us - there is no chance to catch up to them and we
+        # don't want to finish last just because we keep spawning
+        endgame = (state.total_steps - state.step < 100)
+
+        max_opp_ships = max([num for num in state.opp_num_ships.values() if
+                            (num <= ships + 15) or (not endgame)], default=0)
+        max_opp_score = max(state.opp_scores.values(), default=0)
 
         # keep at least MIN_SHIPS ships
         bound = MIN_SHIPS - ships

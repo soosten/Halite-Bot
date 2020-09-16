@@ -11,6 +11,7 @@ class State:
         self.collect_rate = config.collectRate
         self.convert_cost = config.convertCost
         self.spawn_cost = config.spawnCost
+        self.max_halite = config.maxCellHalite
 
         # step and halite map
         self.step = obs.step
@@ -25,29 +26,27 @@ class State:
 
         # several functions want a vector of all sites so we only generate
         # this once and keep it
-        size = self.map_size
-        nsites = size ** 2
-        self.sites = np.arange(nsites)
+        self.sites = np.arange(self.map_size ** 2)
 
         # list of positions with ships that have already moved this turn
-        self.moved_this_turn = np.zeros_like(self.sites, dtype=bool)
+        self.moved_this_turn = np.full(self.map_size ** 2, False, dtype=bool)
 
         # lookup tables for the effect of moves
         # north[x] is the position north of x, etc
-        self.north = (self.sites - size) % nsites
-        self.south = (self.sites + size) % nsites
-        self.east = size * (self.sites // size) \
-            + ((self.sites % size) + 1) % size
-        self.west = size * (self.sites // size) \
-            + ((self.sites % size) - 1) % size
+        self.north = (self.sites - self.map_size) % (self.map_size ** 2)
+        self.south = (self.sites + self.map_size) % (self.map_size ** 2)
+        self.east = self.sites + 1
+        self.east[(self.map_size - 1)::self.map_size] -= self.map_size
+        self.west = self.sites - 1
+        self.west[0::self.map_size] += self.map_size
 
         # dist[x,y] stores the l1-distance between x and y on the torus
-        cols = self.sites % size
-        rows = self.sites // size
+        cols = self.sites % self.map_size
+        rows = self.sites // self.map_size
         coldist = cols - cols[:, np.newaxis]
         rowdist = rows - rows[:, np.newaxis]
-        coldist = np.fmin(np.abs(coldist), size - np.abs(coldist))
-        rowdist = np.fmin(np.abs(rowdist), size - np.abs(rowdist))
+        coldist = np.fmin(np.abs(coldist), self.map_size - np.abs(coldist))
+        rowdist = np.fmin(np.abs(rowdist), self.map_size - np.abs(rowdist))
         self.dist = coldist + rowdist
 
         # sets a number of numpy arrays deriving from self.my_ships, etc
@@ -55,7 +54,7 @@ class State:
         return
 
     def set_opp_data(self, obs):
-        # figure out my id / opponent id
+        # list of opponent ids
         self.opp_ids = list(range(0, len(obs.players)))
         self.opp_ids.remove(self.my_id)
 
@@ -66,7 +65,7 @@ class State:
             self.opp_yards.update(obs.players[opp][1])
             self.opp_ships.update(obs.players[opp][2])
 
-        # arrays containing ship/yard data for all opponents
+        # arrays containing joint ship/yard data for all opponents
         poshal = np.array(list(self.opp_ships.values()), dtype=int)
         pos, hal = np.hsplit(poshal, 2)
         self.opp_ship_pos = np.ravel(pos)
@@ -174,7 +173,7 @@ class State:
                 npos = self.move_to_pos(pos, action)
                 self.my_ships[actor] = [npos, nhal]
 
-                # add new position to list of ships that cannot move this turn
+                # add new position to ships that can no longer move this turn
                 self.moved_this_turn[npos] = True
 
         # update internal variables that derive from my_ships, my_yards
