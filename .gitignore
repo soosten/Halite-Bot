@@ -1,12 +1,4 @@
+**/__pycache__/
+**/.DS_Store
+
 simulation.html
-src/__pycache__/
-
-
-
-.DS_Store
-Notes.md
-testbots/*
-replays/*
-screenshots/*
-saved.py
-tests.py
