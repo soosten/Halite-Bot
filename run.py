@@ -16,7 +16,7 @@ def main():
     # agents = [bot]
     # agents = ["otheragent.py", bot]
     # agents = ["random", bot, "random", None]
-    agents = [bot, bot, bot, bot]
+    agents = ["random", bot, bot, "random"]
 
     # number of steps to run the simulation for - the bot's strategy
     # only makes sense if this is 400, which was its value during the
