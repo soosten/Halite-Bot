@@ -3,24 +3,39 @@ from scipy.optimize import linear_sum_assignment as assignment
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 
+from convert import working_yards
 from settings import (BASELINE_SHIP_RATE, BASELINE_YARD_RATE, STEPS_INITIAL,
                       STEPS_SPIKE, RISK_PREMIUM, SPIKE_PREMIUM, MY_RADIUS,
                       MY_WEIGHT, OPP_RADIUS, OPP_WEIGHT)
 
 
 class Targets:
-    def __init__(self, state, actions, bounties, spawns, protection_memory):
+    def __init__(self, state, actions, bounties, spawns):
         self.num_ships = len(actions.ships)
 
         # if there are no ships, there is nothing to do
         if self.num_ships == 0:
             return
 
-        # read relevant spawning information
-        self.spawns_wanted = spawns.ships_wanted
-        self.spawns_possible = spawns.ships_possible
-        likely_spawns = spawns.spawn_pos[0:self.spawns_possible]
-        self.protected = np.setdiff1d(protection_memory, likely_spawns)
+        # protect those yards that are working and won't have a spawn this turn
+        likely_spawns = spawns.spawn_pos[0:spawns.ships_possible]
+        yards = np.setdiff1d(working_yards(state), likely_spawns)
+
+        # distance of closest opponent ship to each yard
+        inds = np.ix_(state.opp_ship_pos, yards)
+        opp_ship_dist = np.amin(state.dist[inds], axis=0,
+                                initial=state.map_size)
+
+        # distance of closest friendly ship to each yard
+        inds = np.ix_(state.my_ship_pos, yards)
+        my_ship_dist = np.amin(state.dist[inds], axis=0,
+                               initial=state.map_size)
+
+        # if opponent ships start getting too close to a yard compared
+        # to our own, start heading back to protect them
+        inds = opp_ship_dist <= (2 + my_ship_dist)
+        self.protected = yards[inds]
+        self.protection_radius = opp_ship_dist[inds]
 
         # set up candidate moves for each ship and compute
         # distances on an appropriately weighted graph
@@ -64,28 +79,24 @@ class Targets:
         SR = BASELINE_SHIP_RATE
         YR = BASELINE_YARD_RATE
 
-        # add a premium if there are a lot of ships that can attack us
         threats = (state.opp_ship_hal < hal)
 
-        if state.step > STEPS_INITIAL:
-            YR += RISK_PREMIUM * np.sum(threats)
-            SR += RISK_PREMIUM * np.sum(threats)
+        # only consider close ships threats at the beginning
+        if state.step < STEPS_INITIAL:
+            threats &= (state.dist[state.opp_ship_pos, pos] <= 4)
+
+        YR += RISK_PREMIUM * np.sum(threats)
+        SR += RISK_PREMIUM * np.sum(threats)
 
         # make the rate huge at the end of the game (ships should come home)
         if state.total_steps - state.step < STEPS_SPIKE:
             YR += SPIKE_PREMIUM
             SR += SPIKE_PREMIUM
 
-        # hunting is risky and hunters should be very close so consider
-        # both yard and ship rates
-        HR = SR + YR
-
-        # make sure all rates are < 1 so formulas remain stable
+        # make sure all rates are < 1 so formulas remain somewhat stable
         SR = min(SR, 0.9)
         YR = min(YR, 0.9)
-        HR = min(HR, 0.9)
-
-        return SR, YR, HR
+        return SR, YR
 
     def rewards(self, ship, state, bounties):
         pos, hal = state.my_ships[ship]
@@ -97,19 +108,15 @@ class Targets:
         ship_dists = ship_dists[pos_ind, :]
 
         # determine ship rate, yard rate, and hunting rate
-        SR, YR, HR = self.rates(state, ship)
+        SR, YR = self.rates(state, ship)
 
-        # add rewards for mining at all minable sites
-        # see notes for explanation of these quantities
-        # indices of minable sites
-        minable = state.halite_map > 0
-
-        # ignore halite next to enemy yards so ships don't get poached
+        # indices of minable sites - ignore halite right next to enemy yards
         opp_yard_dist = np.amin(state.dist[state.opp_yard_pos, :], axis=0,
                                 initial=state.map_size)
-        minable &= (opp_yard_dist > 1)
+        minable = (state.halite_map > 0) & (opp_yard_dist > 1)
 
-        # see README for explanation of these formulas
+        # add rewards for mining at all minable sites
+        # see README for explanation of these quantities
         H = state.halite_map[minable]
         SD = ship_dists[minable]
         YD = self.yard_dists[ship][minable]
@@ -122,11 +129,11 @@ class Targets:
         F2 = alpha * ((1 + state.regen_rate) ** SD) * H
         F2 = F2 / F
 
-        with np.errstate(divide='ignore'):
-            M = np.log(1 + F1 / F2) - np.log(1 - np.log(beta) / np.log(1 + YR))
-
+        # compute the maximizing M
+        M = np.log(1 + F1 / F2) - np.log(1 - np.log(beta) / np.log(1 + YR))
         M = np.fmax(1, np.round(M / np.log(beta)))
 
+        # insert mining rewards
         reward_map[minable] = (F1 + F2 * (1 - beta ** M)) / ((1 + YR) ** M)
 
         # add rewards at yard for depositing halite
@@ -135,13 +142,9 @@ class Targets:
 
         # insert bounties for opponent ships
         ship_hunt_pos, ship_hunt_rew = bounties.get_ship_targets(ship, state)
-        discount = (1 + HR) ** ship_dists[ship_hunt_pos]
+        discount = (1 + SR) ** ship_dists[ship_hunt_pos]
+        discount = discount * (1 + YR) ** self.yard_dists[ship][ship_hunt_pos]
         reward_map[ship_hunt_pos] = ship_hunt_rew / discount
-
-        # insert bounties for opponent yards
-        yard_hunt_pos, yard_hunt_rew = bounties.get_yard_targets(ship, state)
-        discount = (1 + HR) ** ship_dists[yard_hunt_pos]
-        reward_map[yard_hunt_pos] = yard_hunt_rew / discount
 
         # copy the ship yard rewards onto the duplicate ship yards and
         # append the duplicate rewards
@@ -149,10 +152,10 @@ class Targets:
         duplicate_rewards = np.tile(yard_rewards, self.num_ships - 1)
 
         # finally put a large bonus on going to any protected yards that
-        # the ships is next to - this ensures one close ship always
+        # the ship can protect - this ensures one close ship always
         # chooses the yard - but don't copy this bonus on the duplicates
         # since only one ship needs to be there
-        inds = state.dist[self.protected, pos] <= 1
+        inds = state.dist[self.protected, pos] < self.protection_radius
         reward_map[self.protected[inds]] += 1000
 
         return np.append(duplicate_rewards, reward_map)
@@ -180,6 +183,7 @@ class Targets:
             else:
                 yard_pos = state.my_ship_pos[state.my_ship_hal.argmax()]
 
+            # distance to nearest friendly yard
             self.yard_dists[ship] = dijkstra(graph, indices=yard_pos,
                                              min_only=True)
 

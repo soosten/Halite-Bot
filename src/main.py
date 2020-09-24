@@ -1,10 +1,9 @@
-# uncomment when uploading to kaggle competition to add the location of our
-# source files on the kaggle server to the python path
+# uncomment when uploading to kaggle competitiion to add
+# location of source files on kaggle server to python path
 # import sys
 # sys.path.append("/kaggle_simulations/agent")
 
-import numpy as np
-
+# import source files
 from bounties import Bounties
 from convert import convert
 from move import move
@@ -13,8 +12,8 @@ from state import State
 from targets import Targets
 
 
-# stores lists of ships / yards pending decisions, as well as a dictionary
-# of ships / yards together with the actions decided for them
+# object to store ships / yards pending decisions as well as
+# actions that we have decided on
 class Actions:
     def __init__(self, state):
         self.decided = {}
@@ -26,10 +25,8 @@ class Actions:
         return {k: v for k, v in self.decided.items() if v is not None}
 
 
-# global variables that store list of opponent ships we are hunting
-# and yards we are protecting between turns
+# global variable that stores which opponent ships we are hunting between turns
 ship_target_memory = []
-protection_memory = np.array([], dtype=int)
 
 
 def agent(obs, config):
@@ -42,23 +39,23 @@ def agent(obs, config):
     actions = Actions(state)
 
     # convert appropriate ships into yards
-    global protection_memory
-    protection_memory = convert(state, actions, protection_memory)
+    convert(state, actions)
 
     # plan where we want to spawn new ships
     spawns = Spawns(state, actions)
 
-    # place bounties on selected opponent ships/yards
+    # place bounties on selected opponent ships/yards and remember
+    # which ships we set bounties on for the future
     global ship_target_memory
     bounties = Bounties(state, ship_target_memory)
     ship_target_memory = bounties.target_list
 
     # set destinations for ships and rank moves by how much closer
     # we get to the destinations
-    targets = Targets(state, actions, bounties, spawns, protection_memory)
+    targets = Targets(state, actions, bounties, spawns)
 
     # decide on moves for ships
-    move(state, actions, targets, protection_memory)
+    move(state, actions, targets)
 
     # spawn the new ships at unoccupied shipyards
     spawns.spawn(state, actions)

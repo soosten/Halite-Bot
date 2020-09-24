@@ -1,5 +1,6 @@
 import numpy as np
 
+from convert import working_yards
 from settings import (SPAWNING_STEP, STEPS_FINAL, MIN_SHIPS, SPAWNING_OFFSET,
                       YARD_SCHEDULE)
 
@@ -18,12 +19,8 @@ class Spawns:
         # but strongly prefer not to spawn at abandoned yards
         inds = np.ix_(state.my_ship_pos, self.spawn_pos)
         traffic = np.sum(state.dist[inds] <= 3, axis=0, initial=0)
-
-        inds = np.ix_(state.opp_yard_pos, state.my_yard_pos)
-        dist = np.amin(state.dist[inds], axis=0, initial=state.map_size)
-        abandoned = state.my_yard_pos[dist <= 3]
-
-        score = traffic + 10 * np.in1d(self.spawn_pos, abandoned)
+        not_working = ~np.in1d(self.spawn_pos, working_yards(state))
+        score = traffic + 10 * not_working.astype(int)
         self.spawn_pos = self.spawn_pos[score.argsort()]
         return
 
